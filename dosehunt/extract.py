@@ -138,14 +138,17 @@ def table_value(text: str, row_rx: str, want: str) -> Optional[tuple[float, str,
 
 def table_serving_to_100g(text: str, row_rx: str) -> Optional[tuple[float, str]]:
     """Tableau sans colonne « 100 g » mais avec « Par portion journalière (10 g) » : valeur ramenée à 100 g."""
-    serving = None
+    serving, gap, best = None, 0, None
     for line in text.split("\n"):
         if "|" not in line:
-            serving = None if not line.strip() else serving
+            gap += 1 if line.strip() else 0
+            if gap > 2:                              # sortie du tableau (une note sous l'en-tête est tolérée)
+                serving = None
             continue
+        gap = 0
         cells = [c.strip() for c in line.split("|")]
         head = re.search(r"(?:portion|dose|shaker|mesure)[^|]*?\(\s*" + N + r"\s*g\s*\)", line, re.I) \
-            or re.search(r"\|\s*(?:pour|par)\s+" + N + r"\s*g\b(?!\s*de)", line, re.I)
+            or re.search(r"(?:^|\|)[^|]{0,25}?\b(?:pour|par)\s+" + N + r"\s*g\b(?!\s*de)", line, re.I)
         if head and _f(head.group(1)) == 100:
             head = None
         if head:
@@ -153,10 +156,15 @@ def table_serving_to_100g(text: str, row_rx: str) -> Optional[tuple[float, str]]
             continue
         if serving and re.match(row_rx, cells[0].lower()) and not re.search(r"mati[eè]re s[eè]che", cells[0].lower()):
             for cell in cells[1:]:
-                m = re.match(r"\s*" + N + r"\s*g\b", cell)
-                if m and _f(m.group(1)) <= serving:
-                    return round(_f(m.group(1)) / serving * 100, 1), line
-    return None
+                m = re.match(r"\s*" + N + r"\s*(m?g)\b", cell)
+                grams = (_f(m.group(1)) / (1000 if m.group(2) == "mg" else 1)) if m else None
+                if grams and grams <= serving:
+                    val = round(grams / serving * 100, 1)
+                    if best is None or val > best[0]:
+                        best = (val, line)          # plusieurs tableaux (nature / aromatisé) : la version nature
+                    break
+            serving = None
+    return best
 
 
 def bar_weight(text: str) -> Optional[float]:
@@ -178,12 +186,14 @@ def _protein_per_100g(text: str) -> Optional[ActiveContent]:
     for rx, conf in [
         (r"prot[ée]ines?\s*[:\-]?\s*" + N + r"\s*g\s*(?:pour|/|par)\s*100\s*g", 0.9),
         (N + r"\s*g de prot[ée]ines?\s*(?:pour|/|par|aux)\s*100\s*g", 0.9),
-        (N + r"\s*%\s*(?:de\s*)?prot[ée]ines?", 0.85),
+        (N + r"[ \t]*%[ \t]*(?:de[ \t]*)?prot[ée]ines?", 0.85),
         (r"(?:teneur|taux) (?:en|de) prot[ée]ines?\s*(?:de|:)?\s*" + N + r"\s*%", 0.85),
     ]:
         for m in re.finditer(rx, text, re.I):
             after = text[m.end():m.end() + 30].lower()
             # « composée à 100 % de protéines de lactosérum » décrit l'origine, pas la teneur
+            if _f(m.group(1)) < 20:
+                continue                                # « 2 % » d'AR, de matières grasses… : pas une teneur de poudre protéinée
             if "%" in m.group(0) and (_f(m.group(1)) >= 98 or re.match(r"\s*(de lactos|de whey|d['’]origine|laiti|v[ée]g[ée]tal)", after)):
                 continue
             return ActiveContent("whey", "protein", _f(m.group(1)), "g", "per_100g", "regex_text", conf, m.group(0))
@@ -425,10 +435,21 @@ def extract(category: str, body_html: str, title: str, fmt: Format) -> Optional[
     if category == "omega3":
         return _omega3(text)
     if category == "creatine":
-        return _powder_or_caps(text, "creatine", "creatine", r"cr[ée]atine(?: monohydrate)?|creapure", title, fmt)
+        return _powder_or_caps(text, "creatine", "creatine", r"(?:monohydrate de )?cr[ée]atine(?: monohydrate)?|creapure", title, fmt)
     if category == "collagene":
-        return _powder_or_caps(text, "collagene", "collagen",
-                               r"(?:hydrolysat (?:de |d['’])|peptides? (?:de |d['’]))?collag[eè]ne(?: marin| bovin| hydrolys[ée])?", title, fmt)
+        ac = _powder_or_caps(text, "collagene", "collagen",
+                             r"(?:hydrolysat (?:de |d['’])|peptides? (?:de |d['’]))?collag[eè]ne(?: marin| bovin| hydrolys[ée])?", title, fmt)
+        if ac is None and not (fmt.units and fmt.grams is None):
+            # Poudre de peptides de collagène sans ligne « collagène » : ses protéines sont le collagène.
+            ingr = re.search(r"ingr[ée]dients?\s*:?\s*([^\n]{0,80})", text, re.I)
+            pure = (ingr and re.match(r"\s*(?:\d+\s*%\s*)?(?:peptides?|hydrolysat|collag)", ingr.group(1), re.I)) \
+                or re.search(r"peptides? de collag|collagen peptides|hydrolysat de collag|peptan|naticol|verisol", title, re.I)
+            prot = _protein_per_100g(text) if pure else None
+            if prot and 60 <= prot.amount <= 100:
+                ac = ActiveContent("collagene", "collagen", prot.amount, "g", "per_100g", prot.source,
+                                   round(prot.confidence * 0.85, 2), prot.evidence,
+                                   note="peptides de collagène : teneur en protéines prise comme teneur en collagène")
+        return ac
     return None
 
 

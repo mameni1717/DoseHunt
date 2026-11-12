@@ -167,3 +167,53 @@ def test_bar_per100_value_in_per_bar_column_is_converted():
     t = "<table><tr><td>Valeurs</td><td>Par barre</td></tr><tr><td>Protéines</td><td>35 g</td></tr></table>"
     ac = extract("barres", t, "Crush Protein Bar - 45 g", Format(units=1, unit_grams=45))
     assert ac.amount == 15.8 and ac.confidence == 0.75
+
+
+# --- relevé du 12/11/2026 : produits bon marché passés à la trappe -------------------------------
+
+def test_zumub_creatine_table_header_without_leading_cell_and_note():
+    body = ("<table><tr><td>Pour 3 g</td><td>% Valeur quotidienne</td></tr></table>"
+            "<p>La taille de la portion peut varier.</p>"
+            "<table><tr><td>Monohydrate de créatine</td><td>3 g</td><td>*</td></tr></table>")
+    ac = extract("creatine", body, "Créatine", parse_format("Créatine 1 kg"))
+    assert ac and ac.amount == 100
+
+
+def test_flavoured_and_plain_tables_keep_plain_version():
+    body = ("<table><tr><th></th><th>Pour 3,5 g</th><th>AR</th></tr><tr><td>Créatine</td><td>3 g</td></tr></table>"
+            "<table><tr><th></th><th>Pour 3 g</th><th>AR</th></tr><tr><td>Créatine</td><td>3 g</td></tr></table>")
+    assert extract("creatine", body, "Créatine", parse_format("1 kg")).amount == 100
+
+
+def test_serving_table_in_mg():
+    body = ("<table><tr><th></th><th>Pour 4.6 g</th><th>AR %*</th></tr>"
+            "<tr><td>Protéines</td><td>0 g</td><td>-</td></tr>"
+            "<tr><td>Créatine monohydrate</td><td>3400 mg</td><td>-</td></tr></table>")
+    assert extract("creatine", body, "Micronized Creatine", parse_format("300g")).amount == 73.9
+
+
+def test_valeurs_pour_30g_header():
+    body = ("<table><tr><td>Valeurs pour 30g</td><td></td><td>% AR</td></tr>"
+            "<tr><td>Protéines</td><td>24g</td><td>48%</td></tr></table>")
+    assert extract("whey", body, "Gold Standard", parse_format("2000g")).amount == 80
+
+
+def test_reference_intake_percentage_is_not_protein_content():
+    body = "<p>2%</p><p>Protéines</p><p>Avec 20g de protéines par dose.</p>"
+    assert extract("whey", body, "100% Pure Whey", parse_format("1000g")) is None
+
+
+def test_collagen_peptides_use_protein_content():
+    body = "<p>90% de protéines par portion</p><p>Ingrédients : peptides de collagène bovin</p>"
+    ac = extract("collagene", body, "Peptides de Collagène PEPTAN®", parse_format("300 g"))
+    assert ac and ac.amount == 90
+
+
+def test_json_nutrition_metafields_and_template_tables():
+    from dosehunt.collectors.page import with_nutrition_tables
+    page = ('<script>{"info_diet": {"dosage":"Pour 100 g","detail_nutritionnel":['
+            '{"title":"Energie","value":"374","unit":"kcal"},{"title":"Protéines","value":"76","unit":"g"}]}}</script>')
+    assert extract("whey", with_nutrition_tables("<p>Gold Standard</p>", page), "Gold Standard", parse_format("2kg")).amount == 76
+    page2 = ('<template><table><tr><th>Nutriments</th><th>Par dose</th><th>Pour 100 g</th></tr>'
+             '<tr><td>Protéines</td><td>24 g</td><td>81g</td></tr></table></template>')
+    assert extract("whey", with_nutrition_tables("<p>Native</p>", page2), "Native whey", parse_format("2Kg")).amount == 81

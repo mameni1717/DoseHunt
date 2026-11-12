@@ -432,9 +432,53 @@ def divtables_to_tables(page: str) -> str:
     out.append(page[last:])
     return "".join(out)
 
+# Une vraie ligne de tableau nutritionnel : un nutriment puis, dans la même ligne, une quantité chiffrée.
+_HAS_TABLE = re.compile(r"<t[dh][^>]*>[^<]*(?:prot[ée]ines?|zinc|magn|kcal|cr[ée]atine|collag|epa\b|dha\b|vitamine d|chol[ée]calcif)"
+                        r"(?:(?!</tr>).){0,300}?\d[\d,.]*\s*(?:g|mg|µg|mcg|ui|iu|kcal|kj)\b", re.I | re.S)
+
+
+_JSON_NUTRI = re.compile(r'"dosage"\s*:\s*"([^"]{0,60})"\s*,\s*"detail_nutritionnel"\s*:\s*(\[[^\]]{0,6000}\])')
+
+
+_HAS_HEADER = re.compile(r"<t[dh][^>]*>[^<]{0,40}(?:100\s*g|100\s*ml|par |pour |portion|dose)", re.I)
+
+
+def json_nutrition_tables(page: str, limit: int = 3) -> str:
+    """Tableaux nutritionnels rangés dans le JSON des variantes (métachamps Shopify « info_diet », Fitness Boutique)."""
+    out, seen = [], set()
+    for m in _JSON_NUTRI.finditer(page):
+        try:
+            rows = json.loads(m.group(2))
+        except ValueError:
+            continue
+        cells = [(str(r.get("title", "")), f'{r.get("value", "")} {r.get("unit", "")}'.strip()) for r in rows if isinstance(r, dict)]
+        key = (m.group(1), tuple(cells))
+        if not cells or key in seen:
+            continue
+        seen.add(key)
+        head = htmllib.escape(m.group(1).replace("\\/", "/"))
+        out.append(f"<table><tr><th>Nutriment</th><th>{head}</th></tr>" +
+                   "".join(f"<tr><td>{htmllib.escape(t)}</td><td>{htmllib.escape(v)}</td></tr>" for t, v in cells) + "</table>")
+        if len(out) >= limit:
+            break
+    return "\n".join(out)
+
+
+def with_nutrition_tables(body: str, page: str) -> str:
+    """Ajoute à la zone produit le tableau nutritionnel de la page s'il lui manque (onglet, <template>, JS)."""
+    if not _HAS_TABLE.search(body) or not _HAS_HEADER.search(body):
+        # pas de tableau, ou un tableau dont l'en-tête (« 100 g | 1 dose ») a été perdu avec la zone
+        body += "\n" + page_nutrition_tables(datalabel_headers(divtables_to_tables(page)))
+    if not _HAS_TABLE.search(body):
+        body += "\n" + json_nutrition_tables(page)
+    if not _HAS_TABLE.search(body):
+        body += "\n" + embedded_tables(page)
+    return body
+
+
 def page_nutrition_tables(page: str, limit: int = 4) -> str:
     """Tableaux nutritionnels de la page, où qu'ils soient (secours quand la zone produit les a manqués)."""
-    clean = re.sub(r"(?is)<(script|style|template)[^>]*>.*?</\1>", " ", page)
+    clean = re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", page)   # <template> gardé : tableaux Alpine.js (HSN)
     tables = [t for t in re.findall(r"(?is)<table\b.*?</table>", clean) if _NUTRI.search(re.sub(r"<[^>]+>", " ", t))]
     facts = []
     text = re.sub(r"<[^>]+>", "\n", clean)
@@ -500,7 +544,7 @@ def _words(url: str) -> str:
 
 class PageCollector(Collector):
     platform = "page"
-    max_category_pages = 120
+    max_category_pages = 400
 
     @property
     def cfg(self) -> dict:
@@ -566,10 +610,12 @@ class PageCollector(Collector):
                 link = urljoin(page_url, htmllib.unescape(href)).split("#")[0]
                 if urlsplit(link).netloc != host:
                     continue
-                link = link.split("?")[0]
-                if prod_rx.search(link):
-                    found.append(link)
-                elif cat_rx and cat_rx.search(link) and link not in seen:
+                base, _, query = link.partition("?")
+                pg = re.search(r"(?:^|&)((?:page|p|pg|pagenum)=\d+)(?:&|$)", query)
+                link = base + (f"?{pg.group(1)}" if pg and cat_rx and cat_rx.search(base) else "")
+                if prod_rx.search(base):
+                    found.append(base)
+                elif cat_rx and cat_rx.search(base) and link not in seen:
                     queue.append(link)
         return list(dict.fromkeys(found))
 
@@ -605,12 +651,7 @@ class PageCollector(Collector):
         else:
             variants = variants_from_jsonld(node, nodes, url, self.cfg.get("sku_format")) if node else []
 
-        tpage = datalabel_headers(divtables_to_tables(page))
-        body = zone_html(tpage)
-        if not re.search(r"<t[dh]>[^<]*(?:prot[ée]ines?|zinc|magn|kcal)", body, re.I):
-            body += "\n" + page_nutrition_tables(tpage)
-        if not re.search(r"<t[dh]>[^<]*(?:prot[ée]ines?|zinc|magn|kcal)", body, re.I):
-            body += "\n" + embedded_tables(page)
+        body = with_nutrition_tables(zone_html(datalabel_headers(divtables_to_tables(page))), page)
         desc = node.get("description") or ""
         if desc and desc[:80] not in body:
             body = f"<p>{htmllib.escape(desc)}</p>\n{body}"

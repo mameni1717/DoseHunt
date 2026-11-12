@@ -244,6 +244,8 @@ class PrestaShopCollector(Collector):
             return None
         title = (node.get("name") or meta.get("name") or "").strip()
         body = product_zone_html(page) or (node.get("description") or "")
+        from .page import with_nutrition_tables         # import tardif (page importe base comme nous)
+        body = with_nutrition_tables(body, page)
         hint = format_hint(page)
         if hint:
             body += f"\n<p>Contenance : {hint}</p>"
