@@ -47,6 +47,9 @@ class RawProduct:
     collected_at: datetime = field(default_factory=now_utc)
     source: str = "shopify_json"            # shopify_json | jsonld | feed | api
     origin_text: str = ""                   # méta-description et zone d'achat de la page : « Fabriqué en France »
+    image_url: Optional[str] = None         # photo principale
+    rating: Optional[float] = None          # note moyenne des avis, ramenée sur 5
+    review_count: Optional[int] = None
 
 
 @dataclass

@@ -1,78 +1,106 @@
 import Link from "next/link";
-import { CATEGORY_BY_ID, activeLabel, type Mode } from "@/lib/categories";
+import { CATEGORY_BY_ID, activeLabel, modeDef, type Mode } from "@/lib/categories";
 import { confidenceLabel } from "@/lib/codes";
-import { ago, displayName, eur, num } from "@/lib/format";
+import { ago, displayName, eur, num, snippet, stripBrand } from "@/lib/format";
 import { formatLabel, type Ranked } from "@/lib/rank";
-import { CodeVote, GoButton } from "./client";
+import { CodeVote, CompareToggle, GoButton } from "./client";
 import { currentCountry } from "@/lib/country";
 
 export function unitFor(cat: string, mode: Mode, r: Ranked): string {
-  const c = CATEGORY_BY_ID[cat];
-  if (mode === "unit" && r.unit_label) return r.unit_label;
-  return c.modes[mode].unit;
+  if (mode === "unit" && r.unit_label && CATEGORY_BY_ID[cat].group === "vitamins") return r.unit_label;
+  return modeDef(cat, mode).unit;
+}
+
+function valueFor(r: Ranked, m: Mode): number | null {
+  return m === "dose" ? r.doseNow : m === "kg" ? r.kgNow : r.unitNow;
 }
 
 export function OfferCard({ r, rank, mode, best }: { r: Ranked; rank: number; mode: Mode; best: boolean }) {
   const a = r.applied;
+  const cat = CATEGORY_BY_ID[r.category];
   const country = currentCountry();
-  const chips: React.ReactNode[] = [];
-  if (!r.available) chips.push(<span key="out" className="chip out">Rupture de stock</span>);
+  const original = r.compare_at_price ?? r.price;           // avant promo du site et avant code
+  const ratio = r.final > 0 ? original / r.final : 1;
+  const discounted = original > r.final + 0.005;
+  const modes = (Object.keys(cat.modes) as Mode[]);
+
+  const tags: React.ReactNode[] = [];
+  if (r.subcategory && cat.subs?.[r.subcategory]) tags.push(<span key="sub" className="chip type">{cat.subs[r.subcategory]}</span>);
   if (r.origin_country === country.code)
-    chips.push(<span key="made" className="chip made" title={r.origin_evidence ? `« ${r.origin_evidence} »` : undefined}>
+    tags.push(<span key="made" className="chip made" title={r.origin_evidence ? `D'après la fiche : « ${snippet(r.origin_evidence)} »` : undefined}>
       <span aria-hidden="true">{country.flag}</span> {country.madeIn}</span>);
-  if (a) chips.push(<span key="code" className="chip code">{a.code.code}{a.pct != null ? ` -${a.pct} %` : ""}</span>);
-  if (a?.code.first_order_only) chips.push(<span key="first" className="chip first">1re commande uniquement</span>);
-  if (a && a.confidence < 0.75) chips.push(<span key="conf" className="chip low">Fiabilité {confidenceLabel(a.confidence)}</span>);
-  if (r.variants > 1) chips.push(<span key="tastes" className="chip">{r.variants} arômes ou formats · le moins cher affiché</span>);
-  if (r.compare_at_price) chips.push(<span key="sale" className="chip auto">Promo du site incluse</span>);
-  if (r.combined) chips.push(<span key="combo" className="chip trap">Produit combiné</span>);
-  if (r.salt_label_mg && r.amount != null)
-    chips.push(<span key="salt" className="chip trap">Affiché : {num(r.salt_label_mg)} mg · réel : {num(r.amount, r.amount % 1 ? 1 : 0)} mg</span>);
+  tags.push(r.available
+    ? <span key="stock" className="chip instock">En stock</span>
+    : <span key="stock" className="chip out">Rupture de stock</span>);
+  if (a) tags.push(<span key="code" className="chip code">Code {a.code.code}{a.pct != null ? ` −${a.pct} %` : ""}</span>);
+  if (a?.code.first_order_only) tags.push(<span key="first" className="chip first">1re commande</span>);
+  if (a && a.confidence < 0.75) tags.push(<span key="conf" className="chip low">Code : fiabilité {confidenceLabel(a.confidence)}</span>);
+  if (r.combined) tags.push(<span key="combo" className="chip trap" title="Le prix entier est compté pour cet actif">Produit combiné</span>);
   if (r.source === "assumed" || (r.confidence ?? 1) < 0.8)
-    chips.push(<span key="assume" className="chip low">Teneur supposée</span>);
+    tags.push(<span key="assume" className="chip low" title="Teneur calculée ou supposée, voir le calcul">Teneur estimée</span>);
+
+  const facts: string[] = [];
+  if (r.amount != null) facts.push(`${cat.activeShare ?? "Teneur"} : ${activeLabel(r.category, r.amount, r.unit, r.basis).replace(/ de .* par unité$/, " par unité")}`);
+  facts.push(formatLabel(r) + (r.variants > 1 ? ` · ${r.variants} arômes ou formats` : r.flavour ? ` · ${r.flavour}` : ""));
+  facts.push(`chez ${r.site_name}`);
 
   const content = (r.calc ?? []).find((l) => l.startsWith("Contenu"));
-  const cat = CATEGORY_BY_ID[r.category];
   const calc = [
     `Prix affiché : ${eur(r.price)}${r.compare_at_price ? ` (au lieu de ${eur(r.compare_at_price)})` : ""}`,
-    a ? `Code ${a.code.code}${a.pct != null ? ` -${a.pct} %` : ""} → ${eur(r.final)}` : `Code : aucun → ${eur(r.final)}`,
+    a ? `Code ${a.code.code}${a.pct != null ? ` −${a.pct} %` : ""} → ${eur(r.final)}` : `Sans code → ${eur(r.final)}`,
     ...(content ? [content] : []),
-    `${cat.modes[mode].label} : ${r.value != null ? num(r.value, 2) : "–"} ${unitFor(r.category, mode, r)}`,
+    `${modeDef(r.category, mode).label} : ${r.value != null ? num(r.value, 2) : "–"} ${unitFor(r.category, mode, r)}`,
   ];
   const sources: string[] = [];
-  if (r.evidence) sources.push(`Teneur lue sur la fiche : « ${r.evidence.slice(0, 160)} ».`);
-  if (r.note) sources.push(`Note : ${r.note}.`);
-  if (r.origin_country === country.code && r.origin_evidence) sources.push(`Origine lue sur la fiche : « ${r.origin_evidence} ».`);
+  if (r.evidence) sources.push(`Teneur lue sur la fiche : « ${snippet(r.evidence, 140)} ».`);
+  if (r.note) sources.push(`${r.note[0].toUpperCase()}${r.note.slice(1)}.`);
   if (a) sources.push(`Code : ${a.code.source ?? "source non précisée"}${a.code.last_confirmed ? `, vérifié ${ago(String(a.code.last_confirmed))}` : ""}.`);
+  sources.push(`Prix relevé ${ago(r.collected_at)}.`);
 
   return (
-    <li className={`offer${best && r.available ? " best" : ""}${r.available ? "" : " soldout"}`}>
+    <li id={`r${rank}`} className={`offer${best ? " best" : ""}${r.available ? "" : " soldout"}`}>
       <div className="rank">{rank}</div>
+      <div className="pic">
+        {r.image_url
+          ? <img src={r.image_url} alt="" loading="lazy" width={72} height={72} referrerPolicy="no-referrer" />
+          : <span className="nopic" aria-hidden="true">{cat.short.slice(0, 1)}</span>}
+      </div>
       <div className="prod">
-        <h2><Link href={`/p/${r.product_id}`}>{displayName(r.brand, r.name)}</Link></h2>
-        <div className="meta">
-          {formatLabel(r)}{r.flavour ? ` · ${r.flavour}` : ""} · {activeLabel(r.category, r.amount, r.unit, r.basis)}
-          {r.form ? ` · ${r.form}` : ""} · {r.site_name} · relevé {ago(r.collected_at)}
+        {r.brand && <div className="brandline">{r.brand}</div>}
+        <h2><Link href={`/p/${r.product_id}`}>{stripBrand(r.brand, r.name)}</Link></h2>
+        <div className="meta">{facts.join(" · ")}
+          {r.rating != null && r.review_count ? <> · <span title={`${r.review_count} avis sur le site du marchand`}>★ {num(r.rating, 1)} ({r.review_count} avis)</span></> : null}
         </div>
-        <div className="chips">{chips}</div>
+        <div className="chips">{tags}</div>
       </div>
       <div className="price">
         <div className="unit">
           {r.variants > 1 && <span className="from">À partir de</span>}
-          {r.value != null ? num(r.value, 2) : "–"}
-          <small>{unitFor(r.category, mode, r)}</small>
+          {r.value != null ? num(r.value, 2) : "–"}<small>{unitFor(r.category, mode, r)}</small>
+          {discounted && r.value != null && <span className="before"><s>{num(r.value * ratio, 2)}</s> avant promo</span>}
         </div>
-        <div className="sticker">
-          {r.final < r.price && <s>{eur(r.price)}</s>}
-          {r.compare_at_price && r.final >= r.price && <s>{eur(r.compare_at_price)}</s>}
-          <b>{eur(r.final)}</b> le contenant
+        <table className="pricegrid">
+          <tbody>
+            {modes.filter((m) => m !== mode).map((m) => {
+              const v = valueFor(r, m);
+              return v == null ? null : (
+                <tr key={m}><th>{modeDef(r.category, m).short}</th>
+                  <td><b>{num(v, 2)} €</b>{discounted && <s>{num(v * ratio, 2)} €</s>}</td></tr>
+              );
+            })}
+            <tr><th>Prix du produit</th><td><b>{eur(r.final)}</b>{discounted && <s>{eur(original)}</s>}</td></tr>
+          </tbody>
+        </table>
+        <div className="actions">
+          <GoButton offerId={r.offer_id} code={a?.code.code} />
+          <Link className="btn ghost small" href={`/alertes?product=${r.product_id}&cat=${r.category}`}>Alerte prix</Link>
+          <CompareToggle id={r.product_id} cat={r.category} label={displayName(r.brand, r.name, " ")} />
         </div>
-        <GoButton offerId={r.offer_id} code={a?.code.code} />
       </div>
       <details>
         <summary>Voir le calcul</summary>
         <div className="calc">{calc.join("\n")}</div>
-        {sources.length > 0 && <p className="note-small">{sources.join(" ")}</p>}
+        <p className="note-small">{sources.join(" ")}</p>
         {a && <CodeVote codeId={a.code.id} />}
       </details>
     </li>

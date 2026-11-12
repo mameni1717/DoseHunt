@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
-import { CATEGORIES } from "@/lib/categories";
+import { MAIN_CATEGORIES, VITAMINS_GROUP } from "@/lib/categories";
+import { CompareBar } from "@/components/client";
 
 export const metadata: Metadata = {
   title: { default: "DoseHunt · Le vrai prix de ce que tu avales", template: "%s · DoseHunt" },
   description:
-    "Compare whey, créatine, zinc, magnésium, vitamine D et oméga-3 au prix réel par gramme d'actif, code promo compris.",
+    "Compare whey, créatine, pré-workout, collagène, barres, vitamines et minéraux au prix réel par gramme d'actif, code promo compris.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -30,9 +31,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </Link>
             <span className="country" title="D'autres pays arriveront plus tard">France</span>
             <nav className="cats" aria-label="Catégories">
-              {CATEGORIES.map((c) => (
+              {MAIN_CATEGORIES.map((c) => (
                 <Link key={c.id} href={`/c/${c.id}`}>{c.short}</Link>
               ))}
+              <Link href="/vitamines">{VITAMINS_GROUP.short}</Link>
+              <Link href="/comparer" className="navtool">Comparer</Link>
+              <Link href="/alertes" className="navtool">Alertes prix</Link>
             </nav>
           </header>
           {demo && (
@@ -42,6 +46,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </p>
           )}
           {children}
+          <CompareBar />
           <footer className="foot">
             <span>
               Classement par prix final réel uniquement, aucun emplacement payant. Certains liens sont affiliés :{" "}

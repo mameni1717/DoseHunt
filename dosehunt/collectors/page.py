@@ -155,7 +155,9 @@ def product_from_jsonld(site, url: str, nodes: list[dict]) -> Optional[RawProduc
     return RawProduct(site_id=site.id, external_id=pid, handle=handle, title=(node.get("name") or "").strip(),
                       url=url, vendor=(brand or "").strip() or None, product_type=node.get("category"),
                       body_html=node.get("description") or "", variants=variants,
-                      option_names=["Saveur", "Format"], source="jsonld")
+                      option_names=["Saveur", "Format"], source="jsonld",
+                      image_url=(node.get("image")[0] if isinstance(node.get("image"), list) and node.get("image")
+                                 else node.get("image") if isinstance(node.get("image"), str) else None))
 
 
 # --------------------------------------------------------------------------- Magento
@@ -556,6 +558,11 @@ HOOKS = {"prozis": prozis_nutrition}
 
 # --------------------------------------------------------------------------- collecteur
 
+def _extras(page: str) -> dict:
+    from ..details import page_extras             # import tardif, comme pour l'origine
+    return page_extras(page)
+
+
 def _origin_text(page: str) -> str:
     from ..origin import origin_text_from_page   # import tardif : origin importe collectors.base
     return origin_text_from_page(page)
@@ -695,10 +702,11 @@ class PageCollector(Collector):
             body_html=body, variants=variants,
             option_names=sorted({k for v in variants for k in v.options}), source="page",
             origin_text=_origin_text(page),
+            **_extras(page),
         )
 
     def iter_products(self) -> Iterator[RawProduct]:
-        urls = self.discover()
+        urls = self.only_urls if self.only_urls is not None else self.discover()
         log.info("%s : %d fiches à ouvrir", self.site.id, len(urls))
         limit = self.cfg.get("max_products")
         seen_ids: set[str] = set()

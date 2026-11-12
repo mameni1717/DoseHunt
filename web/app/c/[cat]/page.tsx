@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { OfferCard, unitFor } from "@/components/OfferCard";
-import { CATEGORY_BY_ID, type Mode } from "@/lib/categories";
+import { OfferCard } from "@/components/OfferCard";
+import { AutoSubmit } from "@/components/client";
+import { CATEGORY_BY_ID, MILK_ORIGINS, VITAMINS_GROUP, modeDef, modeOf, type Mode } from "@/lib/categories";
 import { getRanking } from "@/lib/data";
 import { displayName, num, qs } from "@/lib/format";
 import { currentCountry } from "@/lib/country";
 
 export const dynamic = "force-dynamic";
 
+const PAGE = 20;
 type SP = Record<string, string | undefined>;
 
 export async function generateMetadata({ params }: { params: Promise<{ cat: string }> }): Promise<Metadata> {
@@ -21,121 +23,144 @@ export default async function CategoryPage({ params, searchParams }: { params: P
   const sp = await searchParams;
   const c = CATEGORY_BY_ID[cat];
   if (!c) notFound();
-  let mode = (sp.mode as Mode) || c.defaultMode;
-  if (!c.modes[mode] || c.modes[mode].disabled) mode = c.defaultMode;
-  const opts = { mode, allFormats: sp.all === "1", firstOrder: sp.first === "1", useCodes: sp.codes !== "0" };
   const country = currentCountry();
-  const filters = { sub: sp.sub, site: sp.site, brand: sp.brand, form: sp.form, madeIn: sp.made === "1" };
+  const mode: Mode = modeOf(c, sp.mode);
+  const opts = { mode, allFormats: sp.all === "1", firstOrder: sp.first === "1", useCodes: sp.codes !== "0" };
+  const filters = {
+    sub: sp.sub, site: sp.site, brand: sp.brand, form: sp.form, madeIn: sp.made === "1",
+    lactose: sp.lactose === "1", noSweetener: sp.nosweet === "1", noSucralose: sp.nosucra === "1",
+    minActive: sp.min ? Number(sp.min) : undefined, milk: sp.milk,
+  };
   const { rows: all, facets } = await getRanking(cat, filters, opts);
-  const showOut = sp.stock === "all";                 // ruptures masquées sauf si la case est cochée
+  const showOut = sp.stock === "all";
   const outCount = all.filter((r) => !r.available).length;
   const rows = showOut ? all : all.filter((r) => r.available);
-  const base: SP = { mode: sp.mode, sub: sp.sub, all: sp.all, first: sp.first, codes: sp.codes, site: sp.site, brand: sp.brand, form: sp.form, made: sp.made, stock: sp.stock };
+  const shown = Math.max(PAGE, Number(sp.n) || PAGE);
+  const visible = rows.slice(0, shown);
   const inStock = rows.filter((r) => r.available);
   const best = inStock[0];
-  const worst = inStock[inStock.length - 1];
+  const base: SP = { ...sp, n: undefined };
+  const md = modeDef(cat, mode);
+  const has = (f: string) => (c.filters ?? []).includes(f as never);
+  const extraActive = [sp.site, sp.brand, sp.form, sp.lactose, sp.nosweet, sp.nosucra, sp.min, sp.milk, sp.all, sp.first, sp.codes, sp.stock].filter(Boolean).length;
 
   return (
     <>
-      <section className="controls" aria-label="Réglages du classement">
+      {c.group === "vitamins" && <p className="crumb"><Link href="/vitamines">← {VITAMINS_GROUP.label}</Link></p>}
+      <section className="summary" aria-live="polite">
+        <div>
+          <h1>{c.label}</h1>
+          {best ? (
+            <p>
+              Meilleure offre : <b>{displayName(best.brand, best.name, " ")}</b> chez {best.site_name}, {best.variants > 1 ? "à partir de " : ""}
+              <b>{num(best.value ?? 0, 2)} {md.unit.replace(/\.$/, "")}</b>{best.applied ? ` avec le code ${best.applied.code.code}` : ""}.
+              {" "}{inStock.length} produit{inStock.length > 1 ? "s" : ""} en stock{filters.madeIn ? `, fabriqué${inStock.length > 1 ? "s" : ""} en ${country.name}` : ""}.
+            </p>
+          ) : (
+            <p>{outCount ? `Aucune offre en stock pour ces réglages ; ${outCount} en rupture (case « Afficher les ruptures » dans « + de filtres »).` : "Aucune offre pour ces réglages."}</p>
+          )}
+        </div>
+      </section>
+
+      <form className="controls" action={`/c/${cat}`} aria-label="Réglages du classement">
+        <AutoSubmit />
         {c.subs && (
           <div className="row">
             <span className="ctl-label">Type</span>
             <div className="seg">
-              <Link href={qs(base, { sub: undefined })} aria-current={!sp.sub}>Toutes</Link>
+              <Link href={qs(base, { sub: undefined })} aria-current={!sp.sub}>Tous</Link>
               {Object.entries(c.subs).map(([id, label]) => (
                 <Link key={id} href={qs(base, { sub: id })} aria-current={sp.sub === id}>{label}</Link>
               ))}
             </div>
+            {sp.sub && <input type="hidden" name="sub" value={sp.sub} />}
           </div>
         )}
         <div className="row">
-          <span className="ctl-label">Comparer</span>
+          <span className="ctl-label">Classer par</span>
           <div className="seg">
-            {(Object.keys(c.modes) as Mode[]).map((m) =>
-              c.modes[m].disabled ? (
-                <span key={m} className="off" title={c.modes[m].disabled}>{c.modes[m].label}</span>
-              ) : (
-                <Link key={m} href={qs(base, { mode: m === c.defaultMode ? undefined : m })} aria-current={mode === m}>{c.modes[m].label}</Link>
-              ),
+            {(Object.keys(c.modes) as Mode[]).map((m) => (
+              <Link key={m} href={qs(base, { mode: m === c.defaultMode ? undefined : m })} aria-current={mode === m}>{c.modes[m]!.label}</Link>
+            ))}
+          </div>
+          {sp.mode && <input type="hidden" name="mode" value={sp.mode} />}
+          <label className="check made">
+            <input type="checkbox" name="made" value="1" defaultChecked={filters.madeIn} />
+            <span aria-hidden="true">{country.flag}</span> {country.madeIn}<small> ({facets.madeIn})</small>
+          </label>
+        </div>
+        <details className="more" open={extraActive > 0}>
+          <summary>+ de filtres{extraActive ? ` (${extraActive} actif${extraActive > 1 ? "s" : ""})` : ""}</summary>
+          <div className="row">
+            <select className="filter" name="brand" defaultValue={sp.brand ?? ""} aria-label="Marque">
+              <option value="">Toutes les marques</option>
+              {facets.brands.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+            </select>
+            <select className="filter" name="site" defaultValue={sp.site ?? ""} aria-label="Marchand">
+              <option value="">Tous les marchands</option>
+              {facets.sites.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+            {facets.forms.length > 0 && (
+              <select className="filter" name="form" defaultValue={sp.form ?? ""} aria-label="Forme">
+                <option value="">Toutes les formes</option>
+                {facets.forms.map((f) => <option key={f} value={f}>{f}</option>)}
+              </select>
+            )}
+            {has("minActive") && (
+              <select className="filter" name="min" defaultValue={sp.min ?? ""} aria-label={`${c.activeShare} minimum`}>
+                <option value="">{c.activeShare} : tous</option>
+                {[60, 70, 75, 80, 85, 90].map((v) => <option key={v} value={v}>{c.activeShare} ≥ {v} %</option>)}
+              </select>
+            )}
+            {has("milk") && facets.milk.length > 0 && (
+              <select className="filter" name="milk" defaultValue={sp.milk ?? ""} aria-label="Origine du lait">
+                <option value="">Origine du lait : toutes</option>
+                {facets.milk.map((m) => <option key={m} value={m}>Lait : {MILK_ORIGINS[m] ?? m}</option>)}
+              </select>
             )}
           </div>
-        </div>
-        <div className="row">
-          <Link className="toggle" href={qs(base, { all: opts.allFormats ? undefined : "1" })}><b>{opts.allFormats ? "✓" : ""}</b> Afficher tous les formats</Link>
-          <Link className="toggle" href={qs(base, { first: opts.firstOrder ? undefined : "1" })}><b>{opts.firstOrder ? "✓" : ""}</b> J'ai droit aux codes « 1re commande »</Link>
-          <Link className="toggle" href={qs(base, { codes: opts.useCodes ? "0" : undefined })}><b>{opts.useCodes ? "✓" : ""}</b> Appliquer les codes promo</Link>
-          <Link className="toggle" href={qs(base, { stock: showOut ? undefined : "all" })} aria-pressed={showOut}>
-            <b>{showOut ? "✓" : ""}</b> Afficher les produits en rupture de stock<small> ({outCount})</small>
-          </Link>
-          <Link className="toggle made" href={qs(base, { made: filters.madeIn ? undefined : "1" })} aria-pressed={filters.madeIn}>
-            <b>{filters.madeIn ? "✓" : ""}</b> <span aria-hidden="true">{country.flag}</span> {country.filter}
-            <small> ({facets.madeIn})</small>
-          </Link>
-        </div>
-        <form className="row" action={`/c/${cat}`}>
-          {Object.entries(base).filter(([k, v]) => v && !["site", "brand", "form"].includes(k)).map(([k, v]) => (
-            <input key={k} type="hidden" name={k} value={v} />
-          ))}
-          <span className="ctl-label">Filtrer</span>
-          <select className="filter" name="site" defaultValue={sp.site ?? ""} aria-label="Site">
-            <option value="">Tous les sites</option>
-            {facets.sites.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-          </select>
-          <select className="filter" name="brand" defaultValue={sp.brand ?? ""} aria-label="Marque">
-            <option value="">Toutes les marques</option>
-            {facets.brands.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-          </select>
-          {facets.forms.length > 0 && (
-            <select className="filter" name="form" defaultValue={sp.form ?? ""} aria-label="Forme">
-              <option value="">Toutes les formes</option>
-              {facets.forms.map((f) => <option key={f} value={f}>{f}</option>)}
-            </select>
+          <div className="row">
+            {has("lactose") && <label className="check"><input type="checkbox" name="lactose" value="1" defaultChecked={filters.lactose} /> Sans lactose</label>}
+            {has("sweetener") && <label className="check"><input type="checkbox" name="nosweet" value="1" defaultChecked={filters.noSweetener} /> Sans édulcorant</label>}
+            {has("sucralose") && <label className="check"><input type="checkbox" name="nosucra" value="1" defaultChecked={filters.noSucralose} /> Sans sucralose</label>}
+            <label className="check"><input type="checkbox" name="stock" value="all" defaultChecked={showOut} /> Afficher les ruptures ({outCount})</label>
+            <label className="check"><input type="checkbox" name="all" value="1" defaultChecked={opts.allFormats} /> Tous les formats et arômes</label>
+            <label className="check"><input type="checkbox" name="first" value="1" defaultChecked={opts.firstOrder} /> J'ai droit aux codes « 1re commande »</label>
+            <label className="check"><input type="checkbox" name="codes" value="0" defaultChecked={!opts.useCodes} /> Ignorer les codes promo</label>
+          </div>
+          {(has("lactose") || has("sweetener")) && (
+            <p className="note-small">Les filtres « sans… » ne retiennent que les fiches qui le disent ou dont la liste d'ingrédients le montre ;
+              une fiche muette est exclue.</p>
           )}
-          <button type="submit" className="btn ghost">Appliquer</button>
-        </form>
-      </section>
+          <div className="row"><button type="submit" className="btn ghost">Appliquer</button>
+            {extraActive > 0 && <Link className="btn ghost" href={qs({ sub: sp.sub, mode: sp.mode }, {})}>Tout réinitialiser</Link>}</div>
+        </details>
+      </form>
 
-      <section className="summary" aria-live="polite">
-        <div>
-          {best ? (
-            <>
-              <h1>{displayName(best.brand, best.name, " ")} : <em>{best.variants > 1 ? "dès " : ""}{num(best.value ?? 0, 2)} {unitFor(cat, mode, best)}</em></h1>
-              <p>
-                Meilleure offre en {c.modes[mode].label.toLowerCase()}, chez {best.site_name}
-                {best.applied ? `, avec le code ${best.applied.code.code}` : ""}. {inStock.length} produit{inStock.length > 1 ? "s" : ""} en stock comparé{inStock.length > 1 ? "s" : ""} en {country.name}{filters.madeIn ? `, fabriqué${inStock.length > 1 ? "s" : ""} en ${country.name}` : ""}{showOut && outCount ? ` ; ${outCount} en rupture de stock, en grisé en fin de liste` : ""}.
-              </p>
-            </>
-          ) : (
-            <>
-              <h1>Aucune offre en stock pour ces réglages</h1>
-              <p>{outCount ? `${outCount} produit${outCount > 1 ? "s" : ""} en rupture de stock correspond${outCount > 1 ? "ent" : ""} : cochez « Afficher les produits en rupture de stock ».` : "Les collectes de cette catégorie n'ont encore rien indexé, ou les filtres sont trop restrictifs."}</p>
-            </>
-          )}
-        </div>
-        {best && worst && best !== worst && (
-          <div className="spread"><b>×{num((worst.value ?? 0) / (best.value ?? 1), 1)}</b><span>d'écart entre la 1re et la dernière offre</span></div>
-        )}
-      </section>
-
-      {rows.length > 0 ? (
+      {visible.length > 0 ? (
         <ol className="list">
-          {rows.map((r, i) => <OfferCard key={r.offer_id} r={r} rank={i + 1} mode={mode} best={i === 0} />)}
+          {visible.map((r, i) => <OfferCard key={r.offer_id} r={r} rank={i + 1} mode={mode} best={i === 0 && r.available} />)}
         </ol>
       ) : (
         <p className="empty">Aucune offre pour ces réglages.</p>
+      )}
+      {rows.length > shown && (
+        <p className="more-results">
+          <Link className="btn ghost" href={`${qs(base, { n: String(shown + PAGE) })}#r${shown + 1}`} scroll={false}>
+            Voir {Math.min(PAGE, rows.length - shown)} produits de plus ({shown} sur {rows.length})
+          </Link>
+        </p>
       )}
 
       <section className="notes">
         <div className="note">
           <h3>Comment on calcule</h3>
-          Prix final = prix affiché − meilleur code applicable, puis division par la quantité d'actif, le poids ou le nombre
-          d'unités du contenant entier. Frais de port non inclus.
+          Prix final = prix affiché − meilleur code applicable, divisé par la quantité d'actif ou le poids du contenant entier.
+          Pour chaque produit, seul l'arôme ou le format le moins cher est affiché. Frais de port non inclus.
         </div>
         <div className="note">
-          <h3>Produits combinés</h3>
-          Un produit qui apporte deux actifs (whey + collagène, zinc + magnésium) figure dans chaque liste ; son prix entier
-          est attribué à l'actif de la liste, il paraît donc un peu plus cher qu'il ne l'est.
+          <h3>Être prévenu d'une baisse</h3>
+          Bouton « Alerte prix » sur chaque produit, ou <Link href={`/alertes?cat=${cat}`}>une alerte sur toute la catégorie</Link>.
         </div>
       </section>
     </>

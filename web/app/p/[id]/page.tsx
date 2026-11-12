@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CodeVote, CopyCode, GoButton } from "@/components/client";
-import { CATEGORY_BY_ID, activeLabel } from "@/lib/categories";
+import { CATEGORY_BY_ID, activeLabel, modeDef } from "@/lib/categories";
+import { NutritionTable, attributeLines } from "@/components/ProductFacts";
 import { confidenceLabel, effectiveConfidence, percentFor } from "@/lib/codes";
 import { getProduct } from "@/lib/data";
 import { currentCountry } from "@/lib/country";
-import { ago, dateFr, displayName, eur, num } from "@/lib/format";
+import { ago, dateFr, displayName, eur, num, snippet } from "@/lib/format";
 import { rerank, formatLabel } from "@/lib/rank";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +33,8 @@ function History({ points }: { points: { t: Date; v: number }[] }) {
   const lo = Math.min(...vs) * 0.97, hi = Math.max(...vs) * 1.03;
   const x = (t: number) => P + ((t - t0) / Math.max(1, t1 - t0)) * (W - 2 * P);
   const y = (v: number) => H - P - ((v - lo) / Math.max(0.01, hi - lo)) * (H - 2 * P);
-  const d = points.map((p, i) => `${i ? "L" : "M"}${x(p.t.getTime()).toFixed(1)},${y(p.v).toFixed(1)}`).join(" ");
+  const d = points.map((p, i) => i === 0 ? `M${x(p.t.getTime()).toFixed(1)},${y(p.v).toFixed(1)}`
+    : `H${x(p.t.getTime()).toFixed(1)} V${y(p.v).toFixed(1)}`).join(" ");     // en escalier : un prix tient jusqu'au suivant
   const min = points.reduce((a, b) => (b.v < a.v ? b : a));
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label={`Prix entre le ${dateFr(points[0].t)} et le ${dateFr(points[points.length - 1].t)}, minimum ${eur(min.v)}`}>
@@ -56,7 +58,11 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const ranked = rerank(rows, codes, { mode: "dose", allFormats: true, firstOrder: false, useCodes: true });
   const bestByOffer = new Map(ranked.map((r) => [r.offer_id, r]));
   const mainOffer = ranked[0]?.offer_id ?? offers[0]?.id;
-  const points = history.filter((h) => h.offer_id === mainOffer).map((h) => ({ t: new Date(h.observed_at), v: h.final_price ?? h.price }));
+  const points = history.filter((h) => h.offer_id === mainOffer).map((h) => ({ t: new Date(h.observed_at), v: h.final_price ?? h.price }))
+    .sort((a, b) => a.t.getTime() - b.t.getTime());
+  // Un relevé n'est enregistré que quand le prix change : le dernier prix vaut jusqu'à aujourd'hui.
+  if (points.length && Date.now() - points[points.length - 1].t.getTime() > 3600_000)
+    points.push({ t: new Date(), v: points[points.length - 1].v });
   const mainLabel = offers.find((o) => o.id === mainOffer);
 
   return (
@@ -64,11 +70,18 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       <section className="summary">
         <div>
           <p><Link href={`/c/${actives[0]?.category ?? ""}`}>← {CATEGORY_BY_ID[actives[0]?.category ?? ""]?.label ?? "Catégories"}</Link></p>
-          <h1>{displayName(product.brand, product.name)}</h1>
+          <div className="prodhead">
+            {product.image_url && <img src={product.image_url} alt="" width={120} height={120} referrerPolicy="no-referrer" />}
+            <div>
+              <h1>{displayName(product.brand, product.name)}</h1>
+              {product.rating != null && product.review_count ? <p>★ {num(product.rating, 1)} sur 5 · {product.review_count} avis sur le site du marchand</p> : null}
+              <p><Link className="btn ghost small" href={`/alertes?product=${product.id}&cat=${actives[0]?.category ?? ""}`}>Créer une alerte prix</Link></p>
+            </div>
+          </div>
           {product.origin_country === country.code && (
-            <p><span className="chip made" title={product.origin_evidence ? `« ${product.origin_evidence} »` : undefined}>
+            <p><span className="chip made" title={product.origin_evidence ? `« ${snippet(product.origin_evidence)} »` : undefined}>
               <span aria-hidden="true">{country.flag}</span> {country.madeIn}</span>
-              {product.origin_evidence && <span className="note-small"> — d'après la fiche : « {product.origin_evidence} »</span>}</p>
+              {product.origin_evidence && <span className="note-small"> d'après la fiche : « {snippet(product.origin_evidence)} »</span>}</p>
           )}
           <p>Vendu par {product.site_name} · relevé {ago(product.last_seen)} · <a href={product.url} rel="nofollow noopener" target="_blank">fiche du marchand</a></p>
         </div>
@@ -88,12 +101,24 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                   {a.form ? ` · forme ${a.form}` : ""}
                 </td>
                 <td className="note-small">
-                  {SOURCE_LABEL[a.source ?? ""] ?? a.source}{a.evidence ? ` : « ${a.evidence.slice(0, 140)} »` : ""}{a.note ? `. ${a.note}` : ""}
+                  {SOURCE_LABEL[a.source ?? ""] ?? a.source}{a.evidence ? ` : « ${snippet(a.evidence, 140)} »` : ""}{a.note ? `. ${a.note}` : ""}
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
+      </section>
+
+      <section className="panel two">
+        <div>
+          <h2>Composition</h2>
+          {attributeLines(product.attributes).length > 0 && <ul className="facts">{attributeLines(product.attributes).map((l) => <li key={l}>{l}</li>)}</ul>}
+          <p className="note-small"><b>Ingrédients</b> : {product.ingredients ?? "non lus sur la fiche"}</p>
+        </div>
+        <div>
+          <h2>Valeurs nutritionnelles</h2>
+          <NutritionTable n={product.nutrition} />
+        </div>
       </section>
 
       <section className="panel">
@@ -109,7 +134,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                   <td>{formatLabel(o as never) || o.variant_title}{o.flavour ? ` · ${o.flavour}` : ""}{!o.available ? " · indisponible" : ""}</td>
                   <td className="r">{o.compare_at_price ? <s>{eur(o.compare_at_price)}</s> : null} {eur(o.price)}</td>
                   <td className="r">{r ? eur(r.final) : "–"}{r?.applied ? ` (${r.applied.code.code})` : ""}</td>
-                  <td className="r">{r?.value != null && cat ? `${num(r.value, 2)} ${cat.modes.dose.unit}` : "–"}</td>
+                  <td className="r">{r?.value != null && cat ? `${num(r.value, 2)} ${modeDef(cat.id, "dose").unit}` : "–"}</td>
                   <td>{ago(o.collected_at)}</td>
                   <td>{o.available && <GoButton offerId={o.id} code={r?.applied?.code.code} label="Voir" />}</td>
                 </tr>

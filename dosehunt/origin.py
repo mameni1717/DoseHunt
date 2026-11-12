@@ -60,8 +60,24 @@ def detect_origin(body_html: str, title: str = "") -> tuple[Optional[str], Optio
     if len(codes) > 1:
         return None, None                                 # plusieurs pays cités : on ne tranche pas
     pos, code, ev = min(hits)
-    snippet = re.sub(r"\s+", " ", text[max(0, pos - 40):pos + len(ev) + 40]).strip()
-    return code, snippet[:200]
+    return code, sentence_around(text, pos, pos + len(ev))
+
+
+def sentence_around(text: str, start: int, end: int, limit: int = 160) -> str:
+    """La phrase qui contient la mention, coupée proprement (pas de mot tronqué au début ou à la fin)."""
+    left = max(text.rfind(sep, 0, start) for sep in (". ", "\n", "! ", "? ", " | ", "•"))
+    left = 0 if left < 0 else left + 1
+    rights = [i for i in (text.find(sep, end) for sep in (". ", "\n", "! ", "? ", " | ", "•")) if i >= 0]
+    right = min(rights) if rights else len(text)
+    s = re.sub(r"\s+", " ", text[left:right]).strip(" .|•-–")
+    if len(s) > limit:                                   # trop long : centré sur la mention, coupé aux espaces
+        m0 = s.lower().find(text[start:end].lower()[:20])
+        a = max(0, m0 - 60)
+        b = min(len(s), max(m0, 0) + len(text[start:end]) + 60)
+        a = s.find(" ", a) + 1 if a > 0 else 0
+        b = s.rfind(" ", 0, b) if b < len(s) else b
+        s = ("…" if a > 0 else "") + s[a:b].strip() + ("…" if b < len(s) else "")
+    return s[:200]
 
 
 def origin_text_from_page(page: str) -> str:

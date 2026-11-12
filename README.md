@@ -207,3 +207,21 @@ textes descriptifs, conformément à la section juridique du cahier des charges.
 Le port PostgreSQL n'étant pas toujours joignable (bac à sable, réseau d'entreprise), `dosehunt push-neon` copie la
 base locale vers Neon par HTTPS (remplacement complet, avec `DOSEHUNT_NEON_URL`). Le site utilise le pilote
 serverless de Neon (WebSocket sur le port 443) dès que `DATABASE_URL` pointe vers Neon.
+
+## Mises à jour automatiques (GitHub Actions)
+
+`.github/workflows/collect.yml` collecte directement dans Neon (secret `DOSEHUNT_NEON_URL`), un job par site :
+
+- toutes les 8 h (2 h, 10 h, 18 h UTC) : tous les produits, puis `dosehunt codes` (codes affichés par les sites), puis `dosehunt alerts` ;
+- entre deux (6 h, 14 h, 22 h UTC) : `dosehunt collect --only-top 50` (les fiches du top 50 de chaque catégorie et sous-catégorie ; Shopify relit tout, c'est une seule requête), puis les alertes.
+
+Lancer à la main : onglet Actions > Collecte DoseHunt > Run workflow (scope `full` ou `top`, un site ou tous).
+
+Une fois ces collectes en place, Neon est la base de référence : ne plus utiliser `dosehunt push-neon`, qui remplace tout
+(sauf les clics et les alertes prix, qui appartiennent au site).
+
+## Alertes prix
+
+Le site enregistre les inscriptions (table `price_alerts`, créée par le site). `dosehunt alerts` envoie la confirmation puis
+les alertes par l'API Resend : secrets `RESEND_API_KEY` et `ALERT_FROM` (adresse d'un domaine vérifié chez Resend), dans
+GitHub Actions et dans Vercel. Sans clé, les inscriptions restent en attente et rien n'est envoyé.

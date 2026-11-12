@@ -300,6 +300,7 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
     }, ["site_id", "external_id"], update_cols=["handle", "brand", "name", "product_type", "canonical_key",
                                                  "url", "body_hash", "tags", "last_seen", "active"])
 
+    from .details import product_details
     # Pays de fabrication : fiche du catalogue, sinon page produit (Shopify : la description JSON est souvent courte).
     if prev is None or body_changed or reextract:
         from .origin import detect_origin
@@ -314,8 +315,13 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
                 origin, evidence = detect_origin(zone_html(page_html), p.title)
                 if origin is None:
                     origin, evidence = detect_origin(origin_text_from_page(page_html))
+        from .details import page_extras
+        extras = {"image_url": p.image_url, "rating": p.rating, "review_count": p.review_count}
+        if p.source == "shopify_json" and fetch_page is not None and (page_cached := getattr(fetch_page, "cache", {}).get(p.url)):
+            pe = page_extras(page_cached)                # avis Judge.me / Yotpo : seulement dans la page
+            extras = {k: extras[k] or pe[k] for k in extras}
         conn.execute(update(db.products).where(db.products.c.id == product_id).values(
-            origin_country=origin, origin_evidence=evidence))
+            origin_country=origin, origin_evidence=evidence, **extras))
 
     # Contenance absente des libellés (« Default Title », parfum seul) : on la lit une fois sur la page produit.
     hint = prev.content_hint if prev is not None and not body_changed and not reextract else None
@@ -421,11 +427,55 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
 
 # --------------------------------------------------------------------------- un site
 
+    # Ingrédients, valeurs nutritionnelles, attributs : relus à chaque passage, après la lecture éventuelle de la page (simple lecture du texte déjà relevé),
+    # pour profiter tout de suite d'une règle améliorée sans attendre que la fiche change.
+    vals = product_details(p.body_html, p.title)
+    if p.image_url or p.rating is not None:
+        vals.update({k: v for k, v in {"image_url": p.image_url, "rating": p.rating, "review_count": p.review_count}.items() if v is not None})
+    conn.execute(update(db.products).where(db.products.c.id == product_id).values(**vals))
+
+
+def top_product_urls(engine: Engine, site_id: str, n: int) -> list[str]:
+    """Fiches de ce site présentes dans le top n d'au moins une catégorie ou sous-catégorie (mode par défaut)."""
+    cats = categories()
+    col = {"dose": db.index_rows.c.dose_value, "kg": db.index_rows.c.kg_value, "unit": db.index_rows.c.unit_value}
+    urls: set[str] = set()
+    with engine.connect() as conn:
+        for cid, c in cats.items():
+            value = col.get(c.get("default_mode", "dose"), db.index_rows.c.dose_value)
+            subs = [None] + list((c.get("subcategories") or {}).keys())
+            for sub in subs:
+                q = (select(db.offers.c.product_id, db.products.c.url, db.offers.c.site_id, value.label("v"))
+                     .select_from(db.index_rows.join(db.offers, db.offers.c.id == db.index_rows.c.offer_id)
+                                  .join(db.products, db.products.c.id == db.offers.c.product_id))
+                     .where(and_(db.index_rows.c.category == cid, db.offers.c.active.is_(True),
+                                 db.offers.c.available.is_(True), value.is_not(None)))
+                     .order_by(value))
+                if sub:
+                    q = q.where(db.index_rows.c.subcategory == sub)
+                seen: list[int] = []
+                for r in conn.execute(q):
+                    if r.product_id in seen:
+                        continue
+                    seen.append(r.product_id)
+                    if r.site_id == site_id:
+                        urls.add(r.url)
+                    if len(seen) >= n:
+                        break
+    return sorted(urls)
+
+
 def run_site(engine: Engine, site: Site, *, client=None, use_llm: bool = True, limit: Optional[int] = None,
-             reextract: bool = False) -> RunStats:
+             reextract: bool = False, only_top: Optional[int] = None) -> RunStats:
     stats = RunStats()
     started = now_utc()
     collector = collector_for(site, client)
+    scoped_run = False
+    if only_top and site.collector in ("page", "prestashop", "magento"):
+        # Mise à jour du top : seulement les fiches déjà classées dans le top, sans parcourir le catalogue.
+        collector.only_urls = top_product_urls(engine, site.id, only_top)
+        scoped_run = True
+        log.info("%s : mise à jour du top %d, %d fiches", site.id, only_top, len(collector.only_urls))
     status, error = "ok", None
     seen_ids: set[str] = set()
 
@@ -443,6 +493,7 @@ def run_site(engine: Engine, site: Site, *, client=None, use_llm: bool = True, l
         except Exception as exc:                         # noqa: BLE001 — une page manquante ne bloque pas la collecte
             log.info("%s : page produit illisible %s (%s)", site.id, url, exc)
             return None
+    fetch_page.cache = page_cache                       # lu par process_product (avis, photo)
 
     try:
         with engine.begin() as conn:
@@ -475,7 +526,7 @@ def run_site(engine: Engine, site: Site, *, client=None, use_llm: bool = True, l
     for attempt in range(6):                             # clôture : réessayer si la base est occupée
         try:
             with engine.begin() as conn:
-                if status == "ok" and seen_ids:
+                if status == "ok" and seen_ids and not scoped_run:
                     # Les revues qui ne se sont pas reproduites pendant cette collecte complète sont closes.
                     conn.execute(update(db.review_queue).where(and_(
                         db.review_queue.c.site_id == site.id, db.review_queue.c.resolved.is_(False),

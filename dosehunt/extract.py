@@ -443,9 +443,32 @@ def _per_serving_text(text: str, noun_rx: str) -> Optional[tuple[float, str]]:
     return None
 
 
+def _caffeine_per_100g(text: str) -> Optional[ActiveContent]:
+    """Pré-workout : mg de caféine pour 100 g de poudre (« Caféine | 200 mg » pour une dose de 10 g)."""
+    rx = r"(?:caf[ée]ine(?: anhydre)?|caffeine(?: anhydrous)?)"
+    tv = table_value(text, rx, "100g")
+    if tv and tv[1] in ("mg", "g"):
+        mg = tv[0] * (1000 if tv[1] == "g" else 1)
+        return ActiveContent("preworkout", "caffeine", mg, "mg", "per_100g", "regex_table", 0.9, tv[2])
+    ts = table_serving_to_100g(text, rx)              # rend des g pour 100 g
+    if ts:
+        return ActiveContent("preworkout", "caffeine", round(ts[0] * 1000, 1), "mg", "per_100g", "regex_table", 0.85,
+                             ts[1], note="ramené à 100 g depuis la dose")
+    size = serving_size(text)
+    m = re.search(N + r"\s*mg\s*(?:de\s+)?" + rx, text, re.I) or re.search(rx + r"\s*:?\s*" + N + r"\s*mg", text, re.I)
+    if m and size:
+        mg = _f(m.group(1))
+        if mg < size * 1000:
+            return ActiveContent("preworkout", "caffeine", round(mg / size * 100, 1), "mg", "per_100g", "regex_text", 0.8,
+                                 f"{m.group(0)} pour une dose de {size:g} g", note="calculé : caféine par dose ÷ poids de la dose")
+    return None
+
+
 def extract(category: str, body_html: str, title: str, fmt: Format) -> Optional[ActiveContent]:
     text = _THOUSANDS.sub("", html_to_text(body_html))
     full = title + "\n" + text
+    if category == "preworkout":
+        return _caffeine_per_100g(text)
     if category in ("whey", "caseine"):
         ac = _protein_per_100g(text)
         if ac:

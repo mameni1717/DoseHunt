@@ -22,6 +22,7 @@ class Collector(ABC):
     def __init__(self, site: Site, client: Optional[PoliteClient] = None):
         self.site = site
         self.client = client or PoliteClient(delay_seconds=site.delay_seconds)
+        self.only_urls: Optional[list[str]] = None      # mise à jour ciblée (top 50) : fiches connues, sans parcours
 
     @abstractmethod
     def iter_products(self) -> Iterator[RawProduct]:

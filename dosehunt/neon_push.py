@@ -89,10 +89,26 @@ def copy_engine(src: Engine, dst: Engine) -> dict[str, int]:
     return counts
 
 
+# Tables écrites par le site lui-même (clics) : jamais remplacées par l'envoi des collectes.
+# Les alertes prix (price_alerts) sont créées par le site hors de ce schéma, donc jamais touchées non plus.
+SITE_OWNED = {"click_log"}
+
+
 def push(engine: Engine, neon_url: str) -> dict[str, int]:
+    if engine.dialect.name == "sqlite" and engine.url.database:
+        # Instantané cohérent : une collecte en cours peut écrire pendant l'envoi (offres et historique décalés).
+        import sqlite3
+        import tempfile
+        from sqlalchemy import create_engine
+        snap = tempfile.NamedTemporaryFile(suffix=".db", delete=False).name
+        src, dst = sqlite3.connect(engine.url.database, timeout=120), sqlite3.connect(snap)
+        src.backup(dst)
+        src.close()
+        dst.close()
+        engine = create_engine(f"sqlite:///{snap}", future=True)
     neon = NeonHTTP(neon_url)
     create_schema(neon)
-    tables = db.metadata.sorted_tables
+    tables = [t for t in db.metadata.sorted_tables if t.name not in SITE_OWNED]
     neon.query("TRUNCATE " + ", ".join(t.name for t in reversed(tables)) + " RESTART IDENTITY CASCADE")
     counts: dict[str, int] = {}
     with engine.connect() as conn:

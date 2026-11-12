@@ -290,7 +290,7 @@ def test_origin_in_meta_description_and_buy_box_but_not_menu():
 
 
 def test_new_categories_extraction():
-    assert extract("caseine", "<table><tr><th>Nutriments</th><th>Pour 100 g</th></tr><tr><td>Protéines</td><td>80 g</td></tr></table>",
+    assert extract("whey", "<table><tr><th>Nutriments</th><th>Pour 100 g</th></tr><tr><td>Protéines</td><td>80 g</td></tr></table>",
                    "Micellar Casein", parse_format("908 g")).amount == 80
     ac = extract("vitamine_c", "<p>1000 mg de vitamine C par comprimé.</p>", "Vitamine C 1000", parse_format("100 comprimés"))
     assert ac and ac.amount == 1000
@@ -305,4 +305,51 @@ def test_clear_whey_subcategory():
         return [(c.category, c.subcategory) for c in classify(RawProduct(site_id="x", external_id="1", handle="", title=t, url=""))]
     assert sub("Clear Whey Isolate") == [("whey", "clear")]
     assert sub("Clear Vegan Protein") == [("whey", "vegane")]
-    assert sub("Native Micellar Casein Isolate") == [("caseine", None)]
+    assert sub("Native Micellar Casein Isolate") == [("whey", "caseine")]
+    assert extract("preworkout", "<table><tr><td>Pour 10 g</td><td>AR</td></tr><tr><td>Caféine</td><td>200 mg</td><td>-</td></tr></table>",
+                   "C4", parse_format("300 g")).amount == 2000
+
+
+def test_product_details_ingredients_nutrition_attributes():
+    from dosehunt.details import product_details, page_extras
+    body = ("<p>Whey native issue de lait français. Sans lactose.</p>"
+            "<table><tr><th>Nutriments</th><th>Pour 100 g</th></tr><tr><td>Énergie</td><td>1600 kJ / 380 kcal</td></tr>"
+            "<tr><td>Protéines</td><td>80 g</td></tr><tr><td>Sel</td><td>0,3 g</td></tr></table>"
+            "<p>Ingrédients : Protéines de lactosérum (lait) 98%, arôme naturel, émulsifiant (lécithine de tournesol), "
+            "édulcorant : sucralose. Allergènes : lait.</p>")
+    d = product_details(body, "Whey")
+    assert d["nutrition"] == {"energy_kcal": 380.0, "protein": 80.0, "salt": 0.3}
+    a = d["attributes"]
+    assert a["lactose_free"] and a["milk_origin"] == "FR" and a["sweeteners"] == ["sucralose"]
+    assert a["no_sweetener"] is False and a["ingredient_count"] == 4 and "sucralose" in a["watched_additives"]
+    assert product_details("<p>Ingrédients : protéines de lactosérum, cacao maigre, sel.</p>")["attributes"]["no_sweetener"] is True
+    e = page_extras('<script type="application/ld+json">{"@type":"Product","image":["https://x/i.jpg"],'
+                    '"aggregateRating":{"ratingValue":"9.2","bestRating":"10","reviewCount":"120"}}</script>')
+    assert e == {"image_url": "https://x/i.jpg", "rating": 4.6, "review_count": 120}
+
+
+def test_alerts_notify_once_then_rearm(tmp_path, monkeypatch):
+    from sqlalchemy import text
+    from dosehunt import db, alerts
+    e = db.get_engine(f"sqlite:///{tmp_path}/a.db")
+    db.init_db(e)
+    sent = []
+    monkeypatch.setenv("RESEND_API_KEY", "x")
+    monkeypatch.setattr(alerts, "send", lambda to, subject, body: sent.append(subject) or True)
+    alerts.run(e)                                   # crée la table
+    with e.begin() as c:
+        c.execute(text("insert into sites (id, name, platform, collector, status) values ('s', 'S', 'shopify', 'shopify', 'active')"))
+        c.execute(text("insert into products (id, site_id, external_id, name, active) values (1, 's', '1', 'Whey X', 1)"))
+        c.execute(text("insert into offers (id, product_id, site_id, country, variant_id, price, available, active) values (1, 1, 's', 'FR', 'v', 30, 1, 1)"))
+        c.execute(text("insert into index_rows (offer_id, category, country, final_price, dose_value) values (1, 'whey', 'FR', 30, 40)"))
+        c.execute(text("insert into price_alerts (email, product_id, category, mode, threshold, country, token, confirmed) "
+                       "values ('a@b.fr', 1, 'whey', 'dose', 45, 'FR', 't1', 1)"))
+    alerts.run(e); alerts.run(e)
+    assert len(sent) == 1                           # une seule fois tant que le prix reste sous le seuil
+    with e.begin() as c:
+        c.execute(text("update index_rows set dose_value = 50"))
+    alerts.run(e)
+    with e.begin() as c:
+        c.execute(text("update index_rows set dose_value = 39"))
+    alerts.run(e)
+    assert len(sent) == 2                           # réarmée après être repassée au-dessus
