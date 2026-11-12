@@ -35,15 +35,16 @@ export function flavourWords(flavours: (string | null)[]): Set<string> {
 
 const SIZE = /\b\d+(?:[.,]\d+)?\s*(?:kg|g|gr|grammes?|ml|l|lbs?|portions?|doses?|servings?|g[ée]lules?|capsules?|caps|comprim[ée]s?|tabs|sachets?|barres?|x)\b|\b\d+\s*x\s*\d+\s*g?\b|\(\s*\)/g;
 
-export function coreName(name: string, brand: string | null, flavours: Set<string>): string {
+export function coreName(name: string, brand: string | null, flavours: Set<string>, siteName = ""): string {
   let s = norm(name);
-  const b = norm(brand ?? "");
-  if (b) for (const w of b.split(/\s+/)) if (w) s = s.replace(new RegExp(`\\b${w.replace(/[^a-z0-9]/g, "")}\\b`, "g"), " ");
+  // marque et nom du marchand retirés : « EAFIT Pure Whey » = « Pure Whey » sur eafit.com
+  for (const w of norm(`${brand ?? ""} ${siteName}`).split(/[^a-z0-9]+/))
+    if (w.length > 1) s = s.replace(new RegExp(`\\b${w}\\b`, "g"), " ");
   s = s.replace(SIZE, " ");
   return s.split(/[^a-z0-9%]+/).filter((w) => w && !/^\d+$/.test(w) && (PROTECTED.has(w) || !flavours.has(w))).join(" ");
 }
 
-export function groupKey(r: { site_id: string; category: string; subcategory: string | null; brand: string | null; name: string },
+export function groupKey(r: { site_id: string; site_name?: string; category: string; subcategory: string | null; brand: string | null; name: string },
                          flavours: Set<string>): string {
-  return [r.site_id, r.category, r.subcategory ?? "", brandKey(r.brand), coreName(r.name, r.brand, flavours)].join("|");
+  return [r.site_id, r.category, r.subcategory ?? "", brandKey(r.brand), coreName(r.name, r.brand, flavours, r.site_name ?? "")].join("|");
 }

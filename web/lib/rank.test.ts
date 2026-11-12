@@ -74,3 +74,14 @@ test("les arômes d'un même produit chez un même marchand sont regroupés, la 
   assert.equal(r[0].variants, 3);
   assert.equal(r[2].variants, 1);
 });
+
+test("sans marque renseignée, le nom du marchand est retiré du nom (« EAFIT Pure Whey » = « Pure Whey » chez EAFIT)", () => {
+  const base = { site_id: "eafit", site_name: "EAFIT", brand: null, subcategory: "classique" };
+  const rows = [
+    row({ ...base, offer_id: 1, product_id: 1, name: "EAFIT Pure Whey Fraise 2,2 kg", dose_value: 64 }),
+    row({ ...base, offer_id: 2, product_id: 2, name: "Pure Whey Vanille Intense 2.2 kg", dose_value: 65 }),
+  ];
+  const r = rerank(rows, [], { mode: "dose", allFormats: false, firstOrder: false, useCodes: true });
+  assert.equal(r.length, 1);
+  assert.equal(r[0].variants, 2);
+});
