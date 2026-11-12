@@ -6,6 +6,7 @@ ils ne comptent pas. Le pays est rendu en code ISO (FR, IT…) pour servir à n'
 """
 from __future__ import annotations
 
+import html
 import re
 from typing import Optional
 
@@ -61,3 +62,21 @@ def detect_origin(body_html: str, title: str = "") -> tuple[Optional[str], Optio
     pos, code, ev = min(hits)
     snippet = re.sub(r"\s+", " ", text[max(0, pos - 40):pos + len(ev) + 40]).strip()
     return code, snippet[:200]
+
+
+def origin_text_from_page(page: str) -> str:
+    """Endroits de la page où les marques écrivent l'origine hors description : méta-descriptions et zone d'achat
+    (badges « Fabriqué en France » sous le bouton). Pas la page entière : menus et pieds de page ont souvent une
+    rubrique « Made in France » qui ne dit rien du produit affiché."""
+    if not page:
+        return ""
+    parts = [html.unescape(m.group(1)) for m in re.finditer(
+        r'<meta[^>]+(?:name|property)="(?:description|og:description)"[^>]+content="([^"]*)"', page, re.I)]
+    clean = re.sub(r"(?is)<(script|style|noscript|template)[^>]*>.*?</\1>", " ", page)
+    clean = re.sub(r"(?is)<(header|nav|footer)\b.*?</\1>", " ", clean)
+    text = html.unescape(re.sub(r"<[^>]+>", " ", clean))
+    text = re.sub(r"\s+", " ", text)
+    m = re.search(r"ajouter au panier|add to cart|acheter maintenant|buy now", text, re.I)
+    if m:
+        parts.append(text[max(0, m.start() - 600):m.end() + 600])
+    return "\n".join(f"<p>{html.escape(p)}</p>" for p in parts)

@@ -234,4 +234,5 @@ def test_feed_end_to_end(tmp_path, monkeypatch):
     run_site(e, get_site("theproteinworks"), client=client(lambda r: httpx.Response(200, text=AWIN_CSV)), use_llm=False)
     with e.connect() as conn:
         rows = conn.execute(select(db.index_rows.c.category, db.index_rows.c.dose_value)).all()
-    assert rows == [("whey", pytest.approx(29.99 / 0.78, rel=1e-3))]    # le zinc est en rupture : hors index
+    # le zinc est en rupture : gardé dans l'index, le site l'affiche en grisé en fin de liste
+    assert sorted(rows) == [("whey", pytest.approx(29.99 / 0.78, rel=1e-3)), ("zinc", pytest.approx(8.8778, rel=1e-3))]

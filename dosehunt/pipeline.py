@@ -303,12 +303,17 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
     # Pays de fabrication : fiche du catalogue, sinon page produit (Shopify : la description JSON est souvent courte).
     if prev is None or body_changed or reextract:
         from .origin import detect_origin
+        from .origin import origin_text_from_page
         origin, evidence = detect_origin(p.body_html, p.title)
+        if origin is None and p.origin_text:
+            origin, evidence = detect_origin(p.origin_text)
         if origin is None and fetch_page is not None and p.source == "shopify_json":
             page_html = fetch_page(p.url)
             if page_html:
                 from .collectors.page import zone_html
                 origin, evidence = detect_origin(zone_html(page_html), p.title)
+                if origin is None:
+                    origin, evidence = detect_origin(origin_text_from_page(page_html))
         conn.execute(update(db.products).where(db.products.c.id == product_id).values(
             origin_country=origin, origin_evidence=evidence))
 
@@ -392,7 +397,7 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
                 # 36 g de protéines dans une barre de 45 g : la valeur lue est « pour 100 g », pas « par barre »
                 problem = (f"{ac.amount:g} g de protéines pour une barre de {fmt.unit_grams:g} g : "
                            f"valeur probablement donnée pour 100 g")
-            if ac is None or problem or not v.available:
+            if ac is None or problem:                  # rupture de stock : gardée, le site l'affiche en grisé
                 conn.execute(delete(db.index_rows).where(and_(
                     db.index_rows.c.offer_id == offer_id, db.index_rows.c.category == cl.category)))
                 if problem:

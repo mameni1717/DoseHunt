@@ -9,7 +9,7 @@ const COUNTRY = currentCountry().code;
 const ROW_SELECT = `
   select i.offer_id, i.category, i.subcategory, i.final_price, i.dose_value, i.kg_value, i.unit_value, i.unit_label,
          i.total_active, i.active_unit, i.calc, i.combined,
-         o.price, o.compare_at_price, o.variant_title, o.flavour, o.grams, o.units, o.unit_word, o.url as offer_url,
+         o.price, o.compare_at_price, o.available, o.variant_title, o.flavour, o.grams, o.units, o.unit_word, o.url as offer_url,
          o.collected_at, o.site_id, s.name as site_name,
          p.id as product_id, p.brand, p.name, p.origin_country, p.origin_evidence,
          a.amount, a.unit, a.basis, a.source, a.confidence, a.salt_label_mg, a.form, a.note, a.evidence
@@ -18,7 +18,7 @@ const ROW_SELECT = `
     join products p on p.id = o.product_id
     join sites s on s.id = o.site_id
     join product_actives a on a.product_id = p.id and a.category = i.category
-   where i.country = $1 and o.active and o.available and p.active`;
+   where i.country = $1 and o.active and p.active`;   // ruptures incluses : affichées en grisé, en fin de liste
 
 export interface Filters {
   sub?: string;
@@ -82,7 +82,7 @@ export async function getHome(): Promise<Record<string, { count: number; best: R
   const rows = await q<IndexRow>(ROW_SELECT, [COUNTRY]);
   const codes = await getCodes();
   const byCat = new Map<string, IndexRow[]>();
-  for (const r of rows) byCat.set(r.category, [...(byCat.get(r.category) ?? []), r]);
+  for (const r of rows) if (r.available) byCat.set(r.category, [...(byCat.get(r.category) ?? []), r]);
   const out: Record<string, { count: number; best: Ranked | null }> = {};
   for (const [cat, list] of byCat) {
     const ranked = rerank(list, codes, { mode: "dose", allFormats: false, firstOrder: false, useCodes: true });
@@ -106,7 +106,7 @@ export async function getProduct(id: number) {
     salt_label_mg: number | null; form: string | null; note: string | null; status: string; read_at: Date;
   }>(`select category, subcategory, combined, amount, unit, basis, source, confidence, evidence, salt_label_mg, form,
              note, status, read_at from product_actives where product_id = $1 order by category`, [id]);
-  const rows = await q<IndexRow>(ROW_SELECT.replace("and o.available", "") + ` and p.id = $2`, [COUNTRY, id]);
+  const rows = await q<IndexRow>(ROW_SELECT + ` and p.id = $2`, [COUNTRY, id]);
   const offers = await q<{
     id: number; variant_title: string | null; flavour: string | null; price: number; compare_at_price: number | null;
     available: boolean; url: string; collected_at: Date; grams: number | null; units: number | null; unit_word: string | null;

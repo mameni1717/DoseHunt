@@ -21,6 +21,7 @@ export interface IndexRow {
   combined: boolean;
   price: number;
   compare_at_price: number | null;
+  available: boolean;
   variant_title: string | null;
   flavour: string | null;
   grams: number | null;
@@ -79,7 +80,8 @@ export function rerank(rows: IndexRow[], codes: PromoCode[], opts: RankOptions):
     return { ...r, variants: 1, final, applied, value, doseNow, kgNow, unitNow };
   });
   const usable = out.filter((r) => r.value != null && isFinite(r.value));
-  usable.sort((a, b) => (a.value as number) - (b.value as number));
+  // En stock d'abord, puis du moins cher au plus cher ; les ruptures suivent, dans le même ordre.
+  usable.sort((a, b) => Number(!a.available) - Number(!b.available) || (a.value as number) - (b.value as number));
   if (opts.allFormats) return usable;
   // Un seul produit par marchand, tous arômes et formats confondus : on garde la ligne au meilleur ratio
   // pour le mode choisi, et on compte les arômes regroupés (« à partir de »).
