@@ -2,6 +2,7 @@ import { q } from "./db.ts";
 import type { PromoCode } from "./codes.ts";
 import { rerank, type IndexRow, type RankOptions, type Ranked } from "./rank.ts";
 import { currentCountry } from "./country.ts";
+import { brandKey } from "./group.ts";
 
 const COUNTRY = currentCountry().code;
 
@@ -39,7 +40,7 @@ export async function getRanking(cat: string, filters: Filters, opts: RankOption
   const filtered = base.filter((r) =>
     (!filters.sub || r.subcategory === filters.sub) &&
     (!filters.site || r.site_id === filters.site) &&
-    (!filters.brand || (r.brand ?? "") === filters.brand) &&
+    (!filters.brand || brandKey(r.brand) === filters.brand) &&
     (!filters.form || (r.form ?? "") === filters.form) &&
     (!filters.madeIn || r.origin_country === COUNTRY));
   return { rows: rerank(filtered, await getCodes(), opts), facets };
@@ -48,23 +49,31 @@ export async function getRanking(cat: string, filters: Filters, opts: RankOption
 export interface Facets {
   madeIn: number;       // nombre d'offres fabriquées dans le pays du site (avant filtres)
   sites: [string, string][];
-  brands: string[];
+  brands: [string, string][];   // [clé normalisée, orthographe la plus courante]
   forms: string[];
 }
 
 function buildFacets(rows: IndexRow[]): Facets {
   const sites = new Map<string, string>();
-  const brands = new Set<string>();
+  const spellings = new Map<string, Map<string, number>>();   // « BioTechUSA », « Biotech USA » → une seule marque
   const forms = new Set<string>();
   for (const r of rows) {
     sites.set(r.site_id, r.site_name);
-    if (r.brand) brands.add(r.brand);
+    if (r.brand) {
+      const k = brandKey(r.brand);
+      if (!k) continue;
+      const m = spellings.get(k) ?? new Map<string, number>();
+      m.set(r.brand, (m.get(r.brand) ?? 0) + 1);
+      spellings.set(k, m);
+    }
     if (r.form) forms.add(r.form);
   }
+  const brands: [string, string][] = [...spellings.entries()].map(([k, m]) =>
+    [k, [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0]]);
   return {
     madeIn: new Set(rows.filter((r) => r.origin_country === COUNTRY).map((r) => r.product_id)).size,
     sites: [...sites.entries()].sort((a, b) => a[1].localeCompare(b[1], "fr")),
-    brands: [...brands].sort((a, b) => a.localeCompare(b, "fr")),
+    brands: brands.sort((a, b) => a[1].localeCompare(b[1], "fr", { sensitivity: "base" })),
     forms: [...forms].sort(),
   };
 }

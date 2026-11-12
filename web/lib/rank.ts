@@ -3,6 +3,7 @@
 // quantités (actif, kg, unités) sans dupliquer les règles de calcul de la collecte.
 
 import { bestCode, type Applied, type PromoCode } from "./codes.ts";
+import { flavourWords, groupKey, norm } from "./group.ts";
 import type { Mode } from "./categories.ts";
 
 export interface IndexRow {
@@ -46,6 +47,7 @@ export interface IndexRow {
 }
 
 export interface Ranked extends IndexRow {
+  variants: number;       // arômes / déclinaisons regroupés sous cette ligne (1 = pas de regroupement)
   final: number;
   applied: Applied | null;
   value: number | null;
@@ -74,13 +76,23 @@ export function rerank(rows: IndexRow[], codes: PromoCode[], opts: RankOptions):
     const kgNow = kDen ? final / kDen : null;
     const unitNow = uDen ? final / uDen : null;
     const value = opts.mode === "dose" ? doseNow : opts.mode === "kg" ? kgNow : unitNow;
-    return { ...r, final, applied, value, doseNow, kgNow, unitNow };
+    return { ...r, variants: 1, final, applied, value, doseNow, kgNow, unitNow };
   });
   const usable = out.filter((r) => r.value != null && isFinite(r.value));
   usable.sort((a, b) => (a.value as number) - (b.value as number));
   if (opts.allFormats) return usable;
-  const seen = new Set<number>();
-  return usable.filter((r) => (seen.has(r.product_id) ? false : (seen.add(r.product_id), true)));
+  // Un seul produit par marchand, tous arômes et formats confondus : on garde la ligne au meilleur ratio
+  // pour le mode choisi, et on compte les arômes regroupés (« à partir de »).
+  const flavours = flavourWords(rows.map((r) => r.flavour));
+  const groups = new Map<string, { best: Ranked; tastes: Set<string> }>();
+  for (const r of usable) {
+    const key = groupKey(r, flavours);
+    const taste = `${r.product_id}|${norm(r.flavour ?? "")}`;
+    const g = groups.get(key);
+    if (g) g.tastes.add(taste);
+    else groups.set(key, { best: r, tastes: new Set([taste]) });
+  }
+  return [...groups.values()].map((g) => ({ ...g.best, variants: g.tastes.size }));
 }
 
 export function formatLabel(r: Pick<IndexRow, "grams" | "units" | "unit_word" | "variant_title">): string {

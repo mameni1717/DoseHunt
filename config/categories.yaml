@@ -21,7 +21,7 @@ categories:
     exclude: ['gainer', 'diet shake', 'minceur', '\begg\b', 'oeuf', 'œuf', 'cas[ée]ine', 'beurre', 'pancake', 'cookie', 'farine', "oat'?n'?whey", 'shaker', 'barre', '\bbar\b', 'boisson', 'shake.*bouteille', 'bouteille', '\bml\b', 'sample bundle', 'cr[eè]me de riz', 'porridge', 'peptistrong']
     product_type_exclude: ['Protéine minceur', 'Farines', 'Hard Gainers', 'Prise de masse', 'Cuisine']
     subcategories:
-      vegane: ['v[ée]g[ée]tal', 'vegan', 'v[ée]gane', '\bpois\b', '\briz\b', '\bpea\b', 'plant']
+      vegane: ['v[ée]g[ée]tal', 'vegan', 'v[ée]gane', '\bpois\b', '\briz\b', '\bpea\b', 'plant', '\bsoja\b', '\bsoy\b', 'chanvre', '\bhemp\b', 'f[èe]ve', 'tournesol', 'courge', 'potiron', 'graines? de', 'amande', 'lentille', 'pois chiche']
       isolate: ['isolate?', '\biso\b', 'isolat', 'clear', 'hydro']
       classique: []            # par défaut
 
