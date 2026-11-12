@@ -203,6 +203,10 @@ def _protein_per_100g(text: str) -> Optional[ActiveContent]:
         per100 = round(_f(m.group(1)) / _f(m.group(2)) * 100, 1)
         return ActiveContent("whey", "protein", per100, "g", "per_100g", "regex_text", 0.85, m.group(0),
                              note=f"calculé : {m.group(1)} g pour {m.group(2)} g")
+    pst = _per_serving_text(text, r"prot[ée]ines?")
+    if pst and 20 <= pst[0] <= 100:
+        return ActiveContent("whey", "protein", pst[0], "g", "per_100g", "regex_text", 0.8, pst[1],
+                             note="calculé : protéines par portion ÷ poids de la portion")
     return None
 
 
@@ -388,6 +392,10 @@ def _powder_or_caps(text: str, category: str, active: str, noun_rx: str, title: 
     if ts:
         return ActiveContent(category, active, ts[0], "g", "per_100g", "regex_table", 0.85, ts[1],
                              note="ramené à 100 g depuis la colonne « par portion »")
+    pst = _per_serving_text(text, noun_rx)
+    if pst:
+        return ActiveContent(category, active, pst[0], "g", "per_100g", "regex_text", 0.8, pst[1],
+                             note="calculé : quantité par portion ÷ poids de la portion")
     if category == "creatine" and re.search(r"monohydrat|creapure|micronis|100\s*%|pure", title, re.I) \
             and not re.search(r"complexe|\+|matrix|blend|pre|ph-x|malate|hcl|plus", title, re.I):
         return ActiveContent(category, active, 100, "g", "per_100g", "assumed", 0.7, title,
@@ -395,8 +403,34 @@ def _powder_or_caps(text: str, category: str, active: str, noun_rx: str, title: 
     return None
 
 
+_THOUSANDS = re.compile(r"(?<=\d)[ \u00a0\u202f](?=\d{3}(?!\d)\s*(?:mg|g|µg|μg|mcg|ui|iu|kcal|kj)\b)", re.I)
+
+
+def serving_size(text: str) -> Optional[float]:
+    """Poids d'une portion déclaré en texte : « Une portion : 4.1 g », « 1 dose = 30 g », « Dose : 30g »."""
+    m = re.search(r"(?:une|1)?\s*(?:portion|dose|mesure|scoop|shaker)s?\s*(?:journali[eè]re|recommand[ée]e)?\s*[:=(]\s*" + N + r"\s*g\b",
+                  text, re.I)
+    if m and 1 <= _f(m.group(1)) <= 150:
+        return _f(m.group(1))
+    return None
+
+
+def _per_serving_text(text: str, noun_rx: str) -> Optional[tuple[float, str]]:
+    """« 3 g de créatine » (ou « créatine : 3 g ») par portion + poids de la portion : teneur pour 100 g."""
+    size = serving_size(text)
+    if not size:
+        return None
+    for m in re.finditer(r"(?<![\d.,])" + N + r"\s*(m?g)\s*(?:de\s+|d['’]\s*)?(?:" + noun_rx + r")\b|(?:" + noun_rx + r")\s*:?\s*" + N + r"\s*(m?g)\b",
+                         text, re.I):
+        val, unit = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
+        grams = _f(val) / (1000 if unit.lower() == "mg" else 1)
+        if 0 < grams <= size:
+            return round(grams / size * 100, 1), f"{m.group(0)} pour une portion de {size:g} g"
+    return None
+
+
 def extract(category: str, body_html: str, title: str, fmt: Format) -> Optional[ActiveContent]:
-    text = html_to_text(body_html)
+    text = _THOUSANDS.sub("", html_to_text(body_html))
     full = title + "\n" + text
     if category == "whey":
         return _protein_per_100g(text)

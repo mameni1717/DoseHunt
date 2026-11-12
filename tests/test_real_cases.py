@@ -217,3 +217,20 @@ def test_json_nutrition_metafields_and_template_tables():
     page2 = ('<template><table><tr><th>Nutriments</th><th>Par dose</th><th>Pour 100 g</th></tr>'
              '<tr><td>Protéines</td><td>24 g</td><td>81g</td></tr></table></template>')
     assert extract("whey", with_nutrition_tables("<p>Native</p>", page2), "Native whey", parse_format("2Kg")).amount == 81
+
+
+def test_dose_weight_and_active_per_dose_in_text():
+    body = "<p>Une portion : 4.1 g</p><p>Rocky Athletes Creatine contient par portion : 3 g de Créatine, 57,8 mg de Magnésium</p>"
+    ac = extract("creatine", body, "Rocky Athletes Creatine (200g)", parse_format("200g"))
+    assert ac and ac.amount == 73.2
+
+
+def test_thousands_with_space_in_table():
+    body = ("<p>Une portion : 4.1 g</p><table><tr><td>Pour 4.1 g</td><td>AR %*</td></tr>"
+            "<tr><td>Créatine monohydrate - Créatine</td><td>3 400 mg 3 000 mg</td><td>- -</td></tr></table>")
+    assert extract("creatine", body, "Rocky Athletes Creatine", parse_format("200g")).amount == 82.9
+
+
+def test_protein_per_dose_text():
+    body = "<p>Dose : 30g</p><p>Chaque shaker apporte 24 g de protéines.</p>"
+    assert extract("whey", body, "Whey X", parse_format("1kg")).amount == 80
