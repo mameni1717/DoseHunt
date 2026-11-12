@@ -24,6 +24,9 @@ API_URL = "https://api.anthropic.com/v1/messages"
 
 ACTIVE_SPEC = {
     "whey": ("protein", "g", "per_100g", "grammes de protéines pour 100 g de poudre"),
+    "caseine": ("protein", "g", "per_100g", "grammes de protéines pour 100 g de poudre"),
+    "glutamine": ("glutamine", "g", "per_100g", "grammes de glutamine pour 100 g de poudre (ou mg par gélule si gélules)"),
+    "vitamine_c": ("vitamin_c", "mg", "per_unit", "mg de vitamine C par gélule ou comprimé"),
     "collagene": ("collagen", "g", "per_100g", "grammes de collagène pour 100 g de poudre (ou mg par gélule si gélules)"),
     "creatine": ("creatine", "g", "per_100g", "grammes de créatine pour 100 g de poudre (ou mg par gélule si gélules)"),
     "barres": ("protein", "g", "per_unit", "grammes de protéines par barre"),

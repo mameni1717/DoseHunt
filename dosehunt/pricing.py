@@ -13,7 +13,7 @@ from typing import Optional
 from .config import categories, codes_config
 from .models import ActiveContent, Format
 
-DEFAULT_SERVING_G = {"whey": 30, "collagene": 10, "creatine": 3}
+DEFAULT_SERVING_G = {"whey": 30, "caseine": 30, "collagene": 10, "creatine": 3, "glutamine": 5}
 
 
 @dataclass
