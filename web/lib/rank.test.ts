@@ -59,3 +59,18 @@ test("une offre par produit sauf « tous les formats »", () => {
   assert.equal(rerank(rows, [], { mode: "dose", allFormats: false, firstOrder: false, useCodes: true }).length, 1);
   assert.equal(rerank(rows, [], { mode: "dose", allFormats: true, firstOrder: false, useCodes: true }).length, 2);
 });
+
+test("les arômes d'un même produit chez un même marchand sont regroupés, la ligne la moins chère reste", () => {
+  const base = { site_id: "eafit", brand: "EAFIT", subcategory: "classique" };
+  const rows = [
+    row({ ...base, offer_id: 1, product_id: 1, name: "EAFIT Pure Whey Fraise 850g", flavour: "Fraise", dose_value: 40 }),
+    row({ ...base, offer_id: 2, product_id: 2, name: "Pure Whey Myrtille 750g", flavour: "Myrtille", dose_value: 38 }),
+    row({ ...base, offer_id: 3, product_id: 3, name: "EAFIT Pure whey Café 2,2kg", flavour: "Café", dose_value: 31 }),
+    row({ ...base, offer_id: 4, product_id: 4, name: "Pure Whey Isolate Chocolat 750g", flavour: "Chocolat", dose_value: 45 }),
+    row({ offer_id: 5, product_id: 5, site_id: "autre", brand: "EAFIT", name: "Pure Whey Fraise 850g", dose_value: 35 }),
+  ];
+  const r = rerank(rows, [], { mode: "dose", allFormats: false, firstOrder: false, useCodes: true });
+  assert.deepEqual(r.map((x) => x.offer_id), [3, 5, 4]);
+  assert.equal(r[0].variants, 3);
+  assert.equal(r[2].variants, 1);
+});

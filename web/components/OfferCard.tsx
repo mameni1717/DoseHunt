@@ -22,6 +22,7 @@ export function OfferCard({ r, rank, mode, best }: { r: Ranked; rank: number; mo
   if (a) chips.push(<span key="code" className="chip code">{a.code.code}{a.pct != null ? ` -${a.pct} %` : ""}</span>);
   if (a?.code.first_order_only) chips.push(<span key="first" className="chip first">1re commande uniquement</span>);
   if (a && a.confidence < 0.75) chips.push(<span key="conf" className="chip low">Fiabilité {confidenceLabel(a.confidence)}</span>);
+  if (r.variants > 1) chips.push(<span key="tastes" className="chip">{r.variants} arômes ou formats · le moins cher affiché</span>);
   if (r.compare_at_price) chips.push(<span key="sale" className="chip auto">Promo du site incluse</span>);
   if (r.combined) chips.push(<span key="combo" className="chip trap">Produit combiné</span>);
   if (r.salt_label_mg && r.amount != null)
@@ -56,6 +57,7 @@ export function OfferCard({ r, rank, mode, best }: { r: Ranked; rank: number; mo
       </div>
       <div className="price">
         <div className="unit">
+          {r.variants > 1 && <span className="from">À partir de</span>}
           {r.value != null ? num(r.value, 2) : "–"}
           <small>{unitFor(r.category, mode, r)}</small>
         </div>

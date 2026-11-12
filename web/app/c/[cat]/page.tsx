@@ -77,7 +77,7 @@ export default async function CategoryPage({ params, searchParams }: { params: P
           </select>
           <select className="filter" name="brand" defaultValue={sp.brand ?? ""} aria-label="Marque">
             <option value="">Toutes les marques</option>
-            {facets.brands.map((b) => <option key={b} value={b}>{b}</option>)}
+            {facets.brands.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
           </select>
           {facets.forms.length > 0 && (
             <select className="filter" name="form" defaultValue={sp.form ?? ""} aria-label="Forme">
@@ -93,10 +93,10 @@ export default async function CategoryPage({ params, searchParams }: { params: P
         <div>
           {best ? (
             <>
-              <h1>{displayName(best.brand, best.name, " ")} : <em>{num(best.value ?? 0, 2)} {unitFor(cat, mode, best)}</em></h1>
+              <h1>{displayName(best.brand, best.name, " ")} : <em>{best.variants > 1 ? "dès " : ""}{num(best.value ?? 0, 2)} {unitFor(cat, mode, best)}</em></h1>
               <p>
                 Meilleure offre en {c.modes[mode].label.toLowerCase()}, chez {best.site_name}
-                {best.applied ? `, avec le code ${best.applied.code.code}` : ""}. {rows.length} offre{rows.length > 1 ? "s" : ""} comparée{rows.length > 1 ? "s" : ""} en {country.name}{filters.madeIn ? `, fabriquée${rows.length > 1 ? "s" : ""} en ${country.name}` : ""}.
+                {best.applied ? `, avec le code ${best.applied.code.code}` : ""}. {rows.length} produit{rows.length > 1 ? "s" : ""} comparé{rows.length > 1 ? "s" : ""} en {country.name}{filters.madeIn ? `, fabriqué${rows.length > 1 ? "s" : ""} en ${country.name}` : ""}.
               </p>
             </>
           ) : (
