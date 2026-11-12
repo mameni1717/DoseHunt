@@ -229,7 +229,7 @@ sites:
     filters:
       start_urls: [/FR/]
       category_pattern: '^https://www\.zumub\.com/FR/(?:[a-z0-9-]+-c-[\d_]+|(?:nutrition-sportive|sante-et-bien-etre|proteines?|whey|creatine|vitamines?|mineraux|magnesium|zinc|omega-3|collagene|barres?-proteinees?)(?:/[a-z0-9-]+)?)$'
-      product_pattern: '-p-\d+$'
+      product_pattern: '-p-\d+$|^https://www\.zumub\.com/FR/[a-z0-9-]+/[a-z0-9-]+/[a-z0-9-]+$'
       prefilter_url: true
     delay_seconds: 3.5
     notes: >-

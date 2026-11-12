@@ -209,7 +209,11 @@ collection_runs = Table(
 
 
 def get_engine(url: str | None = None) -> Engine:
-    return create_engine(database_url(url), future=True)
+    u = database_url(url)
+    if u.startswith("sqlite"):
+        # plusieurs collectes en parallèle (un processus par site) : attendre le verrou plutôt qu'échouer
+        return create_engine(u, future=True, connect_args={"timeout": 120})
+    return create_engine(u, future=True)
 
 
 click_log = Table(               # clics vers les marchands (mesure de l'affiliation, sans donnée personnelle)

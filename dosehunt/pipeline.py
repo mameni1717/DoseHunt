@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
+import time
 import unicodedata
 from dataclasses import dataclass, field
 from typing import Iterable, Optional
@@ -178,8 +179,8 @@ def _resolve_active(conn: Connection, p: RawProduct, product_id: int, category: 
         # La description du catalogue JSON n'a souvent pas la composition : elle est dans les onglets de la page.
         page_html = fetch_page(p.url)
         if page_html:
-            from .collectors.page import zone_html
-            zone = zone_html(page_html)
+            from .collectors.page import zone_html, with_nutrition_tables
+            zone = with_nutrition_tables(zone_html(page_html), page_html)
             p.body_html = (p.body_html or "") + "\n" + zone      # sert aussi au format (« Pot de 750 g »)
             from .collectors.base import format_hint
             if (hint := format_hint(page_html)):
@@ -393,13 +394,19 @@ def run_site(engine: Engine, site: Site, *, client=None, use_llm: bool = True, l
                 status = "partial"
                 break
             seen_ids.add(raw.external_id)
-            with engine.begin() as conn:                 # une transaction par produit : une erreur n'arrête pas tout
+            for attempt in range(4):
                 try:
-                    process_product(conn, site, raw, codes, stats, use_llm=use_llm, reextract=reextract,
-                                    fetch_page=fetch_page)
+                    with engine.begin() as conn:         # une transaction par produit : une erreur n'arrête pas tout
+                        process_product(conn, site, raw, codes, stats, use_llm=use_llm, reextract=reextract,
+                                        fetch_page=fetch_page)
+                    break
                 except Exception as exc:                 # noqa: BLE001
+                    if "database is locked" in str(exc) and attempt < 3:
+                        time.sleep(5 + 10 * attempt)     # base SQLite occupée par une autre collecte : on réessaie
+                        continue
                     log.exception("%s : produit %s en erreur", site.id, raw.external_id)
                     status, error = "partial", f"{raw.external_id}: {exc}"
+                    break
     except NotImplementedError as exc:
         status, error = "failed", str(exc)
         log.warning(str(exc))
@@ -407,26 +414,33 @@ def run_site(engine: Engine, site: Site, *, client=None, use_llm: bool = True, l
         status, error = "failed", repr(exc)
         log.exception("%s : collecte échouée", site.id)
 
-    with engine.begin() as conn:
-        if status == "ok" and seen_ids:
-            # Les revues qui ne se sont pas reproduites pendant cette collecte complète sont closes.
-            conn.execute(update(db.review_queue).where(and_(
-                db.review_queue.c.site_id == site.id, db.review_queue.c.resolved.is_(False),
-                db.review_queue.c.created_at < started)).values(resolved=True))
-            # Produits disparus du catalogue : retirés de l'index, gardés en base pour l'historique.
-            gone = [r.id for r in conn.execute(select(db.products.c.id).where(and_(
-                db.products.c.site_id == site.id, db.products.c.active.is_(True),
-                db.products.c.external_id.not_in(seen_ids))))]
-            if gone:
-                conn.execute(update(db.products).where(db.products.c.id.in_(gone)).values(active=False))
-                offer_ids = select(db.offers.c.id).where(db.offers.c.product_id.in_(gone))
-                conn.execute(update(db.offers).where(db.offers.c.product_id.in_(gone)).values(active=False))
-                conn.execute(delete(db.index_rows).where(db.index_rows.c.offer_id.in_(offer_ids)))
-        conn.execute(db.collection_runs.insert().values(
-            site_id=site.id, started_at=started, finished_at=now_utc(), status=status,
-            requests=getattr(collector.client, "requests_made", None), products_seen=stats.products_seen,
-            products_in_scope=stats.products_in_scope, offers_indexed=stats.offers_indexed,
-            sent_to_review=stats.sent_to_review, llm_calls=stats.llm_calls, error=error))
+    for attempt in range(6):                             # clôture : réessayer si la base est occupée
+        try:
+            with engine.begin() as conn:
+                if status == "ok" and seen_ids:
+                    # Les revues qui ne se sont pas reproduites pendant cette collecte complète sont closes.
+                    conn.execute(update(db.review_queue).where(and_(
+                        db.review_queue.c.site_id == site.id, db.review_queue.c.resolved.is_(False),
+                        db.review_queue.c.created_at < started)).values(resolved=True))
+                    # Produits disparus du catalogue : retirés de l'index, gardés en base pour l'historique.
+                    gone = [r.id for r in conn.execute(select(db.products.c.id).where(and_(
+                        db.products.c.site_id == site.id, db.products.c.active.is_(True),
+                        db.products.c.external_id.not_in(seen_ids))))]
+                    if gone:
+                        conn.execute(update(db.products).where(db.products.c.id.in_(gone)).values(active=False))
+                        offer_ids = select(db.offers.c.id).where(db.offers.c.product_id.in_(gone))
+                        conn.execute(update(db.offers).where(db.offers.c.product_id.in_(gone)).values(active=False))
+                        conn.execute(delete(db.index_rows).where(db.index_rows.c.offer_id.in_(offer_ids)))
+                conn.execute(db.collection_runs.insert().values(
+                    site_id=site.id, started_at=started, finished_at=now_utc(), status=status,
+                    requests=getattr(collector.client, "requests_made", None), products_seen=stats.products_seen,
+                    products_in_scope=stats.products_in_scope, offers_indexed=stats.offers_indexed,
+                    sent_to_review=stats.sent_to_review, llm_calls=stats.llm_calls, error=error))
+            break
+        except Exception as exc:                         # noqa: BLE001
+            if "database is locked" not in str(exc) or attempt == 5:
+                raise
+            time.sleep(10)
     log.info("%s : %s, %d produits, %d dans nos catégories, %d offres indexées, %d en revue",
              site.id, status, stats.products_seen, stats.products_in_scope, stats.offers_indexed, stats.sent_to_review)
     return stats
