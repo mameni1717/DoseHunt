@@ -245,6 +245,7 @@ class PrestaShopCollector(Collector):
         title = (node.get("name") or meta.get("name") or "").strip()
         body = product_zone_html(page) or (node.get("description") or "")
         from .page import with_nutrition_tables         # import tardif (page importe base comme nous)
+        from ..origin import origin_text_from_page
         body = with_nutrition_tables(body, page)
         hint = format_hint(page)
         if hint:
@@ -256,6 +257,7 @@ class PrestaShopCollector(Collector):
             title=title, url=url, vendor=brand or meta.get("brand"),
             product_type=meta.get("category") or node.get("category"), body_html=body,
             variants=variants, option_names=[_group_label(page, g) for g in groups], source="prestashop",
+            origin_text=origin_text_from_page(page),
         )
 
     refresh_blocked = False

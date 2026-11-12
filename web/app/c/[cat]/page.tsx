@@ -28,8 +28,9 @@ export default async function CategoryPage({ params, searchParams }: { params: P
   const filters = { sub: sp.sub, site: sp.site, brand: sp.brand, form: sp.form, madeIn: sp.made === "1" };
   const { rows, facets } = await getRanking(cat, filters, opts);
   const base: SP = { mode: sp.mode, sub: sp.sub, all: sp.all, first: sp.first, codes: sp.codes, site: sp.site, brand: sp.brand, form: sp.form, made: sp.made };
-  const best = rows[0];
-  const worst = rows[rows.length - 1];
+  const inStock = rows.filter((r) => r.available);
+  const best = inStock[0];
+  const worst = inStock[inStock.length - 1];
 
   return (
     <>
@@ -96,7 +97,7 @@ export default async function CategoryPage({ params, searchParams }: { params: P
               <h1>{displayName(best.brand, best.name, " ")} : <em>{best.variants > 1 ? "dès " : ""}{num(best.value ?? 0, 2)} {unitFor(cat, mode, best)}</em></h1>
               <p>
                 Meilleure offre en {c.modes[mode].label.toLowerCase()}, chez {best.site_name}
-                {best.applied ? `, avec le code ${best.applied.code.code}` : ""}. {rows.length} produit{rows.length > 1 ? "s" : ""} comparé{rows.length > 1 ? "s" : ""} en {country.name}{filters.madeIn ? `, fabriqué${rows.length > 1 ? "s" : ""} en ${country.name}` : ""}.
+                {best.applied ? `, avec le code ${best.applied.code.code}` : ""}. {inStock.length} produit{inStock.length > 1 ? "s" : ""} en stock comparé{inStock.length > 1 ? "s" : ""} en {country.name}{filters.madeIn ? `, fabriqué${inStock.length > 1 ? "s" : ""} en ${country.name}` : ""}{rows.length > inStock.length ? ` ; ${rows.length - inStock.length} en rupture de stock, en grisé en fin de liste` : ""}.
               </p>
             </>
           ) : (

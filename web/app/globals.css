@@ -88,6 +88,9 @@ ol.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .price { text-align: right; min-width: 160px; display: grid; gap: 6px; justify-items: end; }
 .unit { font: 800 38px/0.95 var(--display); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 .best .unit { color: var(--blaze); }
+.offer.soldout { opacity: .5; filter: grayscale(1); }
+.offer.soldout:hover { opacity: .8; }
+.chip.out { color: var(--ink); border-color: var(--ink); font-weight: 700; }
 .unit .from { display: block; font: 600 12px/1.2 var(--body); letter-spacing: 0; color: var(--muted); margin-bottom: 2px; }
 .unit small { font: 600 14px var(--display); letter-spacing: 0; color: var(--muted); margin-left: 2px; }
 .sticker { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }

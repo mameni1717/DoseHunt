@@ -16,6 +16,7 @@ export function OfferCard({ r, rank, mode, best }: { r: Ranked; rank: number; mo
   const a = r.applied;
   const country = currentCountry();
   const chips: React.ReactNode[] = [];
+  if (!r.available) chips.push(<span key="out" className="chip out">Rupture de stock</span>);
   if (r.origin_country === country.code)
     chips.push(<span key="made" className="chip made" title={r.origin_evidence ? `« ${r.origin_evidence} »` : undefined}>
       <span aria-hidden="true">{country.flag}</span> {country.madeIn}</span>);
@@ -45,7 +46,7 @@ export function OfferCard({ r, rank, mode, best }: { r: Ranked; rank: number; mo
   if (a) sources.push(`Code : ${a.code.source ?? "source non précisée"}${a.code.last_confirmed ? `, vérifié ${ago(String(a.code.last_confirmed))}` : ""}.`);
 
   return (
-    <li className={`offer${best ? " best" : ""}`}>
+    <li className={`offer${best && r.available ? " best" : ""}${r.available ? "" : " soldout"}`}>
       <div className="rank">{rank}</div>
       <div className="prod">
         <h2><Link href={`/p/${r.product_id}`}>{displayName(r.brand, r.name)}</Link></h2>

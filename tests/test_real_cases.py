@@ -277,3 +277,13 @@ def test_portions_times_serving_size():
                    body_html="<p>Taille de la portion : 30 g</p>", variants=[v])
     f = _format_from_text(variant_format(p, v), p, "per_100g", "whey", 1)
     assert f.total_grams == 3600
+
+
+def test_origin_in_meta_description_and_buy_box_but_not_menu():
+    from dosehunt.origin import detect_origin, origin_text_from_page
+    page = ('<head><meta name="description" content="Formulation pour les articulations. Made in France."></head>'
+            '<nav><a href="/made-in-france">Made in France</a></nav><main>Articulations 69,00 € Ajouter au panier'
+            ' Fabriqué en France Paiement sécurisé</main>')
+    assert detect_origin(origin_text_from_page(page))[0] == "FR"
+    menu_only = '<nav><a>Fabriqué en France</a></nav><main>Whey 30 € Ajouter au panier Livraison offerte</main>'
+    assert detect_origin(origin_text_from_page(menu_only))[0] is None

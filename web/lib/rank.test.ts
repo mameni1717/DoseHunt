@@ -9,7 +9,7 @@ function row(over: Partial<IndexRow>): IndexRow {
   return {
     offer_id: 1, category: "whey", subcategory: "isolate", final_price: 50, dose_value: 62.5, kg_value: 50, unit_value: 1.5,
     unit_label: "€/portion de 30 g", total_active: 800, active_unit: "g", calc: [], combined: false, price: 50,
-    compare_at_price: null, variant_title: "1 kg", flavour: null, grams: 1000, units: null, unit_word: null,
+    compare_at_price: null, available: true, variant_title: "1 kg", flavour: null, grams: 1000, units: null, unit_word: null,
     offer_url: "https://x", collected_at: new Date(), site_id: "a", site_name: "A", product_id: 1, brand: "B", name: "N",
     amount: 80, unit: "g", basis: "per_100g", source: "regex_table", confidence: 0.95, salt_label_mg: null, form: null,
     note: null, evidence: null, ...over,
@@ -84,4 +84,13 @@ test("sans marque renseignée, le nom du marchand est retiré du nom (« EAFIT P
   const r = rerank(rows, [], { mode: "dose", allFormats: false, firstOrder: false, useCodes: true });
   assert.equal(r.length, 1);
   assert.equal(r[0].variants, 2);
+});
+
+test("les ruptures de stock passent après toutes les offres disponibles", () => {
+  const rows = [
+    row({ offer_id: 1, product_id: 1, site_id: "a", name: "A", dose_value: 20, available: false }),
+    row({ offer_id: 2, product_id: 2, site_id: "b", name: "B", dose_value: 40 }),
+  ];
+  const r = rerank(rows, [], { mode: "dose", allFormats: false, firstOrder: false, useCodes: true });
+  assert.deepEqual(r.map((x) => x.offer_id), [2, 1]);
 });

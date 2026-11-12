@@ -46,6 +46,7 @@ class RawProduct:
     updated_at: Optional[str] = None
     collected_at: datetime = field(default_factory=now_utc)
     source: str = "shopify_json"            # shopify_json | jsonld | feed | api
+    origin_text: str = ""                   # méta-description et zone d'achat de la page : « Fabriqué en France »
 
 
 @dataclass

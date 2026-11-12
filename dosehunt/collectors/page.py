@@ -556,6 +556,11 @@ HOOKS = {"prozis": prozis_nutrition}
 
 # --------------------------------------------------------------------------- collecteur
 
+def _origin_text(page: str) -> str:
+    from ..origin import origin_text_from_page   # import tardif : origin importe collectors.base
+    return origin_text_from_page(page)
+
+
 def _words(url: str) -> str:
     path = urlsplit(url).path
     return re.sub(r"[-_/.]+", " ", re.sub(r"\.(html?|php|aspx)$", "", path))
@@ -689,6 +694,7 @@ class PageCollector(Collector):
             product_type=node.get("category") if isinstance(node.get("category"), str) else None,
             body_html=body, variants=variants,
             option_names=sorted({k for v in variants for k in v.options}), source="page",
+            origin_text=_origin_text(page),
         )
 
     def iter_products(self) -> Iterator[RawProduct]:
