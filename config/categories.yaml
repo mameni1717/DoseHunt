@@ -48,7 +48,7 @@ categories:
     dose_label: "€/100 g de protéine"
     dose_divisor_g: 100
     include: ['barres?\b', '\bbars?\b', 'protein bar', 'crispy', 'crunch']
-    exclude: ['olympique', 'curl', 'traction', 'musculation', 'support de barre', 'rack', 'espalier', 'barreau', 'manchon', '\d+ ?cm\b', 'chrome', 'haltère', 'shaker']
+    exclude: ['olympique', 'curl', 'traction', 'musculation', 'support de barre', 'rack', 'espalier', 'barreau', 'manchon', '\d+ ?cm\b', 'chrome', 'haltère', 'shaker', '\bcups?\b', '\bpops\b', '\bchips\b']
     require_any: ['prot', 'barre', '\bbar']
 
   creatine:
