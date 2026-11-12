@@ -1,0 +1,228 @@
+"""Ligne de commande DoseHunt.
+
+  dosehunt init                       crée les tables et charge sites, pays, codes
+  dosehunt collect --site raptor      collecte un site
+  dosehunt collect --platform shopify collecte tous les sites actifs d'une plateforme
+  dosehunt collect --all              collecte tous les sites actifs
+  dosehunt recompute                  recalcule l'index (après une modification des codes)
+  dosehunt export -o data.json        exporte l'index pour le site
+  dosehunt status                     fraîcheur et taux d'échec par site
+  dosehunt review                     liste ce qui attend une revue humaine
+  dosehunt review --fix ID --amount 15 --basis per_unit   corrige une teneur à la main
+  dosehunt detect https://exemple.fr  détecte la plateforme d'un site
+  dosehunt sites                      liste les 25 sites et leur état
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import logging
+import os
+import sys
+
+from sqlalchemy import and_, func, select, update
+
+from . import db
+from .config import get_site, sites
+
+
+def _engine(args):
+    engine = db.get_engine(args.db)
+    db.init_db(engine)
+    return engine
+
+
+def cmd_init(args):
+    from .pipeline import seed
+    engine = _engine(args)
+    seed(engine)
+    print(f"Base prête ({engine.url.render_as_string(hide_password=True)}) : {len(sites())} sites chargés.")
+
+
+def cmd_collect(args):
+    from .pipeline import run_site, seed
+    engine = _engine(args)
+    seed(engine)
+    if args.site:
+        targets = [get_site(s) for s in args.site]
+        refused = [t for t in targets if t.status in ("blocked", "paused") and not args.force]
+        for t in refused:
+            print(f"{t.name} : site {t.status} ({t.notes.strip()[:120]}…). Rien n'est envoyé ; --force pour passer outre.")
+        targets = [t for t in targets if t not in refused]
+        if not targets:
+            return
+    else:
+        def runnable(s):
+            if s.status == "active":
+                return True
+            # The Protein Works : s'active dès que l'URL du flux d'affiliation est fournie
+            return s.status == "needs_feed" and bool(os.environ.get((s.filters or {}).get("feed_env", "")))
+        targets = [s for s in sites().values() if runnable(s)
+                   and (args.all or (args.platform and s.collector == args.platform))]
+    if not targets:
+        sys.exit("Aucun site à collecter : précise --site, --platform ou --all.")
+    failed = 0
+    for site in targets:
+        st = run_site(engine, site, use_llm=not args.no_llm, limit=args.limit, reextract=args.reextract)
+        print(f"{site.name:<20} {st.products_seen:>5} produits  {st.products_in_scope:>4} dans nos catégories  "
+              f"{st.offers_indexed:>5} offres indexées  {st.sent_to_review:>4} en revue  {st.pages_fetched:>3} pages lues  {st.llm_calls:>3} appels IA")
+        failed += st.products_seen == 0
+    sys.exit(1 if failed == len(targets) else 0)
+
+
+def cmd_codes(args):
+    """Relève les codes promo affichés par les sites, puis recalcule l'index."""
+    from .codes import collect_site_codes
+    from .pipeline import recompute_index, seed, store_found_codes
+    engine = _engine(args)
+    seed(engine)
+    targets = [get_site(s) for s in args.site] if args.site else [s for s in sites().values() if s.status == "active"]
+    for site in targets:
+        found = collect_site_codes(site)
+        st = store_found_codes(engine, site, found)
+        desc = ", ".join(f"{f.code} ({'/'.join(str(t['pct']) + '%' + (' dès ' + str(int(t['min'])) + '€' if t['min'] else '') for t in f.tiers)})"
+                         for f in found) or "aucun"
+        print(f"{site.name:<20} {desc}  [{st['new']} nouveau(x), {st['confirmed']} confirmé(s)]")
+    if not args.no_recompute:
+        print(f"{recompute_index(engine)} lignes d'index recalculées.")
+
+
+def cmd_demo(args):
+    from .demo import load_demo
+    st = load_demo(_engine(args))
+    print(f"Démonstration chargée : {st.products_in_scope} produits, {st.offers_indexed} offres indexées, "
+          f"{st.sent_to_review} en revue.")
+
+
+def cmd_push_neon(args):
+    from .neon_push import push
+    url = os.environ.get("DOSEHUNT_NEON_URL")
+    if not url:
+        sys.exit("Renseigne DOSEHUNT_NEON_URL (adresse de connexion Neon).")
+    counts = push(_engine(args), url)
+    print("Copié vers Neon : " + ", ".join(f"{t} {n}" for t, n in counts.items() if n))
+
+
+def cmd_recompute(args):
+    from .pipeline import recompute_index, seed
+    engine = _engine(args)
+    seed(engine)
+    print(f"{recompute_index(engine)} lignes d'index recalculées.")
+
+
+def cmd_export(args):
+    from .export import write_export
+    data = write_export(_engine(args), args.output, args.country)
+    counts = ", ".join(f"{c['label']} {c['count']}" for c in data["categories"].values())
+    print(f"{len(data['products'])} produits exportés vers {args.output} ({counts}).")
+
+
+def cmd_status(args):
+    engine = _engine(args)
+    r = db.collection_runs.c
+    with engine.connect() as conn:
+        last = select(r.site_id, func.max(r.id).label("mid")).group_by(r.site_id).subquery()
+        runs = {x.site_id: x for x in conn.execute(select(db.collection_runs).join(last, r.id == last.c.mid)).mappings()}
+        fails = dict(conn.execute(select(r.site_id, func.sum((r.status != "ok").cast(db.Integer)) * 1.0 / func.count())
+                                  .group_by(r.site_id)).all())
+        pending = dict(conn.execute(select(db.review_queue.c.site_id, func.count())
+                                    .where(db.review_queue.c.resolved.is_(False)).group_by(db.review_queue.c.site_id)).all())
+    print(f"{'Site':<20}{'Collecteur':<18}{'Dernière collecte':<20}{'État':<9}{'Offres':>7}{'Revue':>7}{'Échecs':>8}")
+    for s in sites().values():
+        run = runs.get(s.id)
+        when = run["finished_at"].strftime("%d/%m %H:%M") if run and run["finished_at"] else "jamais"
+        print(f"{s.name:<20}{s.collector:<18}{when:<20}{(run['status'] if run else s.status):<9}"
+              f"{(run['offers_indexed'] if run else 0):>7}{pending.get(s.id, 0):>7}"
+              f"{(f'{fails[s.id] * 100:.0f} %' if s.id in fails else '—'):>8}")
+
+
+def cmd_review(args):
+    engine = _engine(args)
+    q = db.review_queue.c
+    if args.fix:
+        with engine.begin() as conn:
+            item = conn.execute(select(db.review_queue).where(q.id == args.fix)).mappings().first()
+            if not item:
+                sys.exit(f"Revue {args.fix} introuvable.")
+            pid = conn.execute(select(db.products.c.id).where(and_(
+                db.products.c.site_id == item["site_id"],
+                db.products.c.external_id == item["external_id"].split(":")[0]))).scalar_one()
+            conn.execute(update(db.product_actives).where(and_(
+                db.product_actives.c.product_id == pid, db.product_actives.c.category == item["category"]))
+                .values(amount=args.amount, basis=args.basis or db.product_actives.c.basis, status="manual",
+                        source="manual", confidence=1.0, note=args.note))
+            conn.execute(update(db.review_queue).where(q.id == args.fix).values(resolved=True))
+        print("Teneur corrigée à la main. Elle sera reprise à la prochaine collecte du site "
+              f"(dosehunt collect --site {item['site_id']}).")
+        return
+    with engine.connect() as conn:
+        rows = conn.execute(select(db.review_queue).where(q.resolved.is_(False))
+                            .order_by(q.site_id, q.reason).limit(args.limit)).mappings().all()
+    if args.json:
+        print(json.dumps([dict(r) for r in rows], ensure_ascii=False, indent=1, default=str))
+        return
+    for r in rows:
+        title = (r["payload"] or {}).get("title", "")
+        print(f"#{r['id']:<5} {r['site_id']:<16} {r['category'] or '':<11} {r['reason']:<15} {title[:45]:<46} {r['detail']}")
+    print(f"\n{len(rows)} élément(s) en attente.")
+
+
+def cmd_detect(args):
+    from .detect import detect
+    for url in args.urls:
+        d = detect(url)
+        print(f"{url} → {d.platform} (collecteur conseillé : {d.suggested_collector}) ; {'; '.join(d.evidence)}")
+
+
+def cmd_sites(args):
+    for s in sites().values():
+        print(f"{s.id:<17} {s.name:<20} {s.platform:<24} {s.collector:<18} {s.status}")
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="dosehunt", description="Collectes automatiques DoseHunt")
+    ap.add_argument("--db", help="URL de la base (sinon DOSEHUNT_DATABASE_URL, sinon sqlite:///dosehunt.db)")
+    ap.add_argument("-v", "--verbose", action="store_true")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("init").set_defaults(func=cmd_init)
+    c = sub.add_parser("collect")
+    c.add_argument("--site", action="append")
+    c.add_argument("--platform", help="collecteur : shopify, shopify_headless, prestashop, magento, page, affiliate_feed")
+    c.add_argument("--all", action="store_true")
+    c.add_argument("--no-llm", action="store_true", help="ne pas appeler l'IA en secours")
+    c.add_argument("--limit", type=int, help="nombre maximal de produits (essais)")
+    c.add_argument("--reextract", action="store_true", help="relire toutes les teneurs (après une amélioration des règles)")
+    c.add_argument("--force", action="store_true", help="collecter même un site marqué blocked ou paused")
+    c.set_defaults(func=cmd_collect)
+    k = sub.add_parser("codes", help="relève les codes promo affichés par les sites")
+    k.add_argument("--site", action="append")
+    k.add_argument("--no-recompute", action="store_true")
+    k.set_defaults(func=cmd_codes)
+    sub.add_parser("recompute").set_defaults(func=cmd_recompute)
+    sub.add_parser("push-neon", help="copie la base locale vers Neon par HTTPS (remplacement complet)").set_defaults(func=cmd_push_neon)
+    sub.add_parser("demo", help="charge le jeu de démonstration (relevé du prototype, 11/11/2026)").set_defaults(func=cmd_demo)
+    e = sub.add_parser("export")
+    e.add_argument("-o", "--output", default="dosehunt-index.json")
+    e.add_argument("--country", default="FR")
+    e.set_defaults(func=cmd_export)
+    sub.add_parser("status").set_defaults(func=cmd_status)
+    r = sub.add_parser("review")
+    r.add_argument("--limit", type=int, default=200)
+    r.add_argument("--json", action="store_true")
+    r.add_argument("--fix", type=int, help="id de la revue à corriger")
+    r.add_argument("--amount", type=float)
+    r.add_argument("--basis", choices=["per_100g", "per_unit"])
+    r.add_argument("--note")
+    r.set_defaults(func=cmd_review)
+    d = sub.add_parser("detect")
+    d.add_argument("urls", nargs="+")
+    d.set_defaults(func=cmd_detect)
+    sub.add_parser("sites").set_defaults(func=cmd_sites)
+    args = ap.parse_args(argv)
+    logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
+                        format="%(asctime)s %(levelname)s %(name)s : %(message)s")
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()

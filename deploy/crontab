@@ -1,0 +1,28 @@
+# Collectes DoseHunt (heure de Paris). À installer avec : crontab deploy/crontab
+# Le cahier des charges demande les promos toutes les 2 à 6 h. Les teneurs ne sont relues (et l'IA appelée)
+# que pour les fiches dont le texte a changé.
+CRON_TZ=Europe/Paris
+DOSEHUNT_DATABASE_URL=postgresql+psycopg://dosehunt:MOT_DE_PASSE@localhost/dosehunt
+# ANTHROPIC_API_KEY=...                      (facultatif : extraction de secours par l'IA)
+# DOSEHUNT_FEED_THEPROTEINWORKS=https://...  (URL du flux d'affiliation, quand le programme est accepté)
+
+# Shopify (catalogue JSON, 1 à 9 requêtes par site) : toutes les 4 h
+7 */4 * * *   cd /opt/dosehunt && .venv/bin/dosehunt collect --platform shopify >> logs/collect.log 2>&1
+
+# Greenwhey (headless) et PrestaShop (une requête par fiche et par déclinaison) : 2 fois par jour
+23 6,18 * * * cd /opt/dosehunt && .venv/bin/dosehunt collect --platform shopify_headless >> logs/collect.log 2>&1
+41 5,17 * * * cd /opt/dosehunt && .venv/bin/dosehunt collect --platform prestashop >> logs/collect.log 2>&1
+
+# Magento (EAFIT, HSN) et fiches sur-mesure (Myprotein, Prozis, Bulk, Zumub, Optigura, Eric Favre, Decathlon, nu3) :
+# une requête par fiche, 15 à 60 min par site. 2 fois par jour, décalés pour ne pas tout lancer en même temps.
+13 3,15 * * * cd /opt/dosehunt && .venv/bin/dosehunt collect --platform magento >> logs/collect.log 2>&1
+37 1,13 * * * cd /opt/dosehunt && .venv/bin/dosehunt collect --platform page >> logs/collect.log 2>&1
+
+# Flux d'affiliation (The Protein Works) : une fois par jour, s'il est configuré
+52 4 * * *    cd /opt/dosehunt && .venv/bin/dosehunt collect --platform affiliate_feed >> logs/collect.log 2>&1
+
+# Codes promo affichés par les sites (bandeaux) : toutes les 3 h, puis recalcul de l'index
+29 */3 * * *  cd /opt/dosehunt && .venv/bin/dosehunt codes >> logs/codes.log 2>&1
+
+# Export de l'index pour le site, 10 min après chaque collecte Shopify
+17 */4 * * *  cd /opt/dosehunt && .venv/bin/dosehunt export -o /var/www/dosehunt/data/index.json >> logs/export.log 2>&1
