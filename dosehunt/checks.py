@@ -17,7 +17,7 @@ def check_active(ac: ActiveContent) -> Optional[str]:
         if not lo <= ac.amount <= hi:
             return f"{ac.amount:g} {ac.unit} pour 100 g hors fourchette [{lo}, {hi}]"
     else:
-        rng = c.get("range_per_unit_mg") if ac.unit == "mg" and ac.category in ("creatine", "collagene") else c.get("range_per_unit")
+        rng = c.get("range_per_unit_mg") if ac.unit == "mg" and ac.category in ("creatine", "collagene", "glutamine") else c.get("range_per_unit")
         if rng:
             lo, hi = rng
             if not lo <= ac.amount <= hi:

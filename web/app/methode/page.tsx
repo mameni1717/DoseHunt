@@ -17,7 +17,7 @@ export default function Methode() {
       <h2>Le critère de classement</h2>
       <p>Un seul critère : le prix comparé, du moins cher au plus cher. Trois façons de comparer, au choix :</p>
       <ul>
-        <li><b>Par dose d'actif</b> : € par kg de protéine, par g de zinc ou de magnésium élément, par 100 000 UI de vitamine D, par g d'EPA + DHA.</li>
+        <li><b>Par dose d'actif</b> : € par kg de protéine, par g de zinc ou de magnésium élément, par 100 000 UI de vitamine D, par g de vitamine C, par g d'EPA + DHA, par kg de créatine, de collagène ou de glutamine.</li>
         <li><b>Par kg de produit</b> : le prix au poids, comme en magasin.</li>
         <li><b>Par unité</b> : € par barre, gélule, comprimé ou portion.</li>
       </ul>

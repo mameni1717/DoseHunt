@@ -1,4 +1,4 @@
-// Libellés et modes des 8 catégories (miroir de config/categories.yaml côté collecte).
+// Libellés et modes des catégories (miroir de config/categories.yaml côté collecte).
 
 export type Mode = "dose" | "kg" | "unit";
 
@@ -21,7 +21,7 @@ export const CATEGORIES: Category[] = [
       kg: { label: "Prix par kg de produit", unit: "€/kg" },
       unit: { label: "Prix par portion de 30 g", unit: "€/portion" },
     },
-    subs: { classique: "Whey classique", isolate: "Whey isolate", vegane: "Whey végane" },
+    subs: { classique: "Whey classique", isolate: "Whey isolate", clear: "Clear whey", vegane: "Protéine végane" },
   },
   {
     id: "collagene", label: "Collagène", short: "Collagène", defaultMode: "dose",
@@ -79,6 +79,30 @@ export const CATEGORIES: Category[] = [
       unit: { label: "Prix par capsule", unit: "€/capsule" },
     },
   },
+  {
+    id: "caseine", label: "Caséine", short: "Caséine", defaultMode: "dose",
+    modes: {
+      dose: { label: "Prix par kg de protéine", unit: "€/kg prot." },
+      kg: { label: "Prix par kg de produit", unit: "€/kg" },
+      unit: { label: "Prix par portion de 30 g", unit: "€/portion" },
+    },
+  },
+  {
+    id: "glutamine", label: "Glutamine", short: "Glutamine", defaultMode: "dose",
+    modes: {
+      dose: { label: "Prix par kg de glutamine", unit: "€/kg glut." },
+      kg: { label: "Prix par kg de produit", unit: "€/kg" },
+      unit: { label: "Prix par portion de 5 g", unit: "€/portion" },
+    },
+  },
+  {
+    id: "vitamine_c", label: "Vitamine C", short: "Vitamine C", defaultMode: "dose",
+    modes: {
+      dose: { label: "Prix par g de vitamine C", unit: "€/g vit. C" },
+      kg: { label: "Prix par kg", unit: "€/kg", disabled: perUnitNoKg },
+      unit: { label: "Prix par gélule ou comprimé", unit: "€/unité" },
+    },
+  },
 ];
 
 export const CATEGORY_BY_ID: Record<string, Category> = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
@@ -88,7 +112,8 @@ export function activeLabel(cat: string, amount: number | null, unit: string | n
   const n = amount.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
   const what: Record<string, string> = {
     whey: "protéine", barres: "protéine", collagene: "collagène", creatine: "créatine", zinc: "zinc",
-    magnesium: "magnésium", vitamine_d: "vitamine D", omega3: "EPA + DHA",
+    magnesium: "magnésium", vitamine_d: "vitamine D", omega3: "EPA + DHA", caseine: "protéine",
+    glutamine: "glutamine", vitamine_c: "vitamine C",
   };
   return basis === "per_100g" ? `${n} ${unit} de ${what[cat]} pour 100 g` : `${n} ${unit} de ${what[cat]} par unité`;
 }

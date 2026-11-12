@@ -343,7 +343,7 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
         basis = cats[cl.category]["basis"]
         powder = bool(re.search(r"\bpoudre\b|\bpowder\b", p.title, re.I))
         # Barres : un nombre nu est un poids (« 48 » = barre de 48 g) ; poudre : un nombre nu est un poids aussi.
-        prefer_units = (basis == "per_unit" or cl.category in ("creatine", "collagene")) and cl.category != "barres" and not powder
+        prefer_units = (basis == "per_unit" or cl.category in ("creatine", "collagene", "glutamine")) and cl.category != "barres" and not powder
         sample_fmt = variant_format(p, p.variants[0], prefer_units=prefer_units) if p.variants else Format()
         ac = _resolve_active(conn, p, product_id, cl.category, cl.subcategory, cl.combined,
                              body_changed, sample_fmt, stats, use_llm, reextract, fetch_page)
@@ -370,7 +370,7 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
             if cl.category == "barres" and fmt.total_units is None and fmt.grams and fmt.grams <= 150:
                 fmt.units, fmt.unit_grams, fmt.grams, fmt.unit_word = 1, fmt.grams, None, "barre"   # « 60g » : une barre
             fmt = _format_from_text(fmt, p, basis, cl.category, len(p.variants))
-            if ac and ac.basis == "per_unit" and ac.category in ("creatine", "collagene") and fmt.total_units is None:
+            if ac and ac.basis == "per_unit" and ac.category in ("creatine", "collagene", "glutamine") and fmt.total_units is None:
                 fmt.confidence = 0
             offer_id = upsert(conn, db.offers, {
                 "product_id": product_id, "site_id": site.id, "country": site.country, "variant_id": v.variant_id,

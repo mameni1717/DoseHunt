@@ -446,8 +446,15 @@ def _per_serving_text(text: str, noun_rx: str) -> Optional[tuple[float, str]]:
 def extract(category: str, body_html: str, title: str, fmt: Format) -> Optional[ActiveContent]:
     text = _THOUSANDS.sub("", html_to_text(body_html))
     full = title + "\n" + text
-    if category == "whey":
-        return _protein_per_100g(text)
+    if category in ("whey", "caseine"):
+        ac = _protein_per_100g(text)
+        if ac:
+            ac.category = category
+        return ac
+    if category == "vitamine_c":
+        return _per_unit_element(full, "vitamine_c", r"vitamine c|vit\.? ?c|acide l?-?ascorbique", "vitamin_c")
+    if category == "glutamine":
+        return _powder_or_caps(text, "glutamine", "glutamine", r"l-?glutamine|glutamine", title, fmt)
     if category == "barres":
         weight0 = fmt.unit_grams or bar_weight(text)
         tv = table_value(text, r"prot[ée]ines?|protein", "unit")

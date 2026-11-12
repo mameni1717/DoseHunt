@@ -26,8 +26,11 @@ export default async function CategoryPage({ params, searchParams }: { params: P
   const opts = { mode, allFormats: sp.all === "1", firstOrder: sp.first === "1", useCodes: sp.codes !== "0" };
   const country = currentCountry();
   const filters = { sub: sp.sub, site: sp.site, brand: sp.brand, form: sp.form, madeIn: sp.made === "1" };
-  const { rows, facets } = await getRanking(cat, filters, opts);
-  const base: SP = { mode: sp.mode, sub: sp.sub, all: sp.all, first: sp.first, codes: sp.codes, site: sp.site, brand: sp.brand, form: sp.form, made: sp.made };
+  const { rows: all, facets } = await getRanking(cat, filters, opts);
+  const showOut = sp.stock === "all";                 // ruptures masquées sauf si la case est cochée
+  const outCount = all.filter((r) => !r.available).length;
+  const rows = showOut ? all : all.filter((r) => r.available);
+  const base: SP = { mode: sp.mode, sub: sp.sub, all: sp.all, first: sp.first, codes: sp.codes, site: sp.site, brand: sp.brand, form: sp.form, made: sp.made, stock: sp.stock };
   const inStock = rows.filter((r) => r.available);
   const best = inStock[0];
   const worst = inStock[inStock.length - 1];
@@ -62,6 +65,9 @@ export default async function CategoryPage({ params, searchParams }: { params: P
           <Link className="toggle" href={qs(base, { all: opts.allFormats ? undefined : "1" })}><b>{opts.allFormats ? "✓" : ""}</b> Afficher tous les formats</Link>
           <Link className="toggle" href={qs(base, { first: opts.firstOrder ? undefined : "1" })}><b>{opts.firstOrder ? "✓" : ""}</b> J'ai droit aux codes « 1re commande »</Link>
           <Link className="toggle" href={qs(base, { codes: opts.useCodes ? "0" : undefined })}><b>{opts.useCodes ? "✓" : ""}</b> Appliquer les codes promo</Link>
+          <Link className="toggle" href={qs(base, { stock: showOut ? undefined : "all" })} aria-pressed={showOut}>
+            <b>{showOut ? "✓" : ""}</b> Afficher les produits en rupture de stock<small> ({outCount})</small>
+          </Link>
           <Link className="toggle made" href={qs(base, { made: filters.madeIn ? undefined : "1" })} aria-pressed={filters.madeIn}>
             <b>{filters.madeIn ? "✓" : ""}</b> <span aria-hidden="true">{country.flag}</span> {country.filter}
             <small> ({facets.madeIn})</small>
@@ -97,13 +103,13 @@ export default async function CategoryPage({ params, searchParams }: { params: P
               <h1>{displayName(best.brand, best.name, " ")} : <em>{best.variants > 1 ? "dès " : ""}{num(best.value ?? 0, 2)} {unitFor(cat, mode, best)}</em></h1>
               <p>
                 Meilleure offre en {c.modes[mode].label.toLowerCase()}, chez {best.site_name}
-                {best.applied ? `, avec le code ${best.applied.code.code}` : ""}. {inStock.length} produit{inStock.length > 1 ? "s" : ""} en stock comparé{inStock.length > 1 ? "s" : ""} en {country.name}{filters.madeIn ? `, fabriqué${inStock.length > 1 ? "s" : ""} en ${country.name}` : ""}{rows.length > inStock.length ? ` ; ${rows.length - inStock.length} en rupture de stock, en grisé en fin de liste` : ""}.
+                {best.applied ? `, avec le code ${best.applied.code.code}` : ""}. {inStock.length} produit{inStock.length > 1 ? "s" : ""} en stock comparé{inStock.length > 1 ? "s" : ""} en {country.name}{filters.madeIn ? `, fabriqué${inStock.length > 1 ? "s" : ""} en ${country.name}` : ""}{showOut && outCount ? ` ; ${outCount} en rupture de stock, en grisé en fin de liste` : ""}.
               </p>
             </>
           ) : (
             <>
-              <h1>Aucune offre pour ces réglages</h1>
-              <p>Les collectes de cette catégorie n'ont encore rien indexé, ou les filtres sont trop restrictifs.</p>
+              <h1>Aucune offre en stock pour ces réglages</h1>
+              <p>{outCount ? `${outCount} produit${outCount > 1 ? "s" : ""} en rupture de stock correspond${outCount > 1 ? "ent" : ""} : cochez « Afficher les produits en rupture de stock ».` : "Les collectes de cette catégorie n'ont encore rien indexé, ou les filtres sont trop restrictifs."}</p>
             </>
           )}
         </div>

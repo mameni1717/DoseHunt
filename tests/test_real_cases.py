@@ -287,3 +287,22 @@ def test_origin_in_meta_description_and_buy_box_but_not_menu():
     assert detect_origin(origin_text_from_page(page))[0] == "FR"
     menu_only = '<nav><a>Fabriqué en France</a></nav><main>Whey 30 € Ajouter au panier Livraison offerte</main>'
     assert detect_origin(origin_text_from_page(menu_only))[0] is None
+
+
+def test_new_categories_extraction():
+    assert extract("caseine", "<table><tr><th>Nutriments</th><th>Pour 100 g</th></tr><tr><td>Protéines</td><td>80 g</td></tr></table>",
+                   "Micellar Casein", parse_format("908 g")).amount == 80
+    ac = extract("vitamine_c", "<p>1000 mg de vitamine C par comprimé.</p>", "Vitamine C 1000", parse_format("100 comprimés"))
+    assert ac and ac.amount == 1000
+    ac = extract("glutamine", "<p>Une portion : 5 g</p><p>5 g de L-glutamine par portion</p>", "L-Glutamine", parse_format("500 g"))
+    assert ac and ac.amount == 100
+
+
+def test_clear_whey_subcategory():
+    from dosehunt.classify import classify
+    from dosehunt.models import RawProduct
+    def sub(t):
+        return [(c.category, c.subcategory) for c in classify(RawProduct(site_id="x", external_id="1", handle="", title=t, url=""))]
+    assert sub("Clear Whey Isolate") == [("whey", "clear")]
+    assert sub("Clear Vegan Protein") == [("whey", "vegane")]
+    assert sub("Native Micellar Casein Isolate") == [("caseine", None)]

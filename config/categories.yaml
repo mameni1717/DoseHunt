@@ -1,4 +1,4 @@
-# Les 8 catégories du MVP (liste fixée le 11/11/2026).
+# Les 8 catégories du MVP (liste fixée le 11/11/2026), plus caséine, vitamine C et glutamine (12/11/2026).
 # Classement : un produit entre dans une catégorie si un mot-clé « include » apparaît dans
 # son titre, son type ou ses tags, et aucun mot-clé « exclude ». Expressions régulières, insensibles à la casse.
 # active      : ce qu'on compare en mode « dose d'actif »
@@ -22,7 +22,8 @@ categories:
     product_type_exclude: ['Protéine minceur', 'Farines', 'Hard Gainers', 'Prise de masse', 'Cuisine']
     subcategories:
       vegane: ['v[ée]g[ée]tal', 'vegan', 'v[ée]gane', '\bpois\b', '\briz\b', '\bpea\b', 'plant', '\bsoja\b', '\bsoy\b', 'chanvre', '\bhemp\b', 'f[èe]ve', 'tournesol', 'courge', 'potiron', 'graines? de', 'amande', 'lentille', 'pois chiche']
-      isolate: ['isolate?', '\biso\b', 'isolat', 'clear', 'hydro']
+      clear: ['\bclear\b']    # whey isolat « limonade » : sous-catégorie à part, avant les isolats
+      isolate: ['isolate?', '\biso\b', 'isolat', 'hydro']
       classique: []            # par défaut
 
   collagene:
@@ -111,6 +112,46 @@ categories:
     dose_divisor_mg: 1000
     include: ['om[ée]ga[ -]?3', '\bepa\b', '\bdha\b', 'krill', 'huile de poisson', 'fish oil', 'epax', 'animal omega']
     exclude: ['om[ée]ga 6', 'om[ée]ga[- ]?3-6-9', 'chia']
+
+  caseine:
+    label: Caséine
+    active: protein
+    active_unit: g
+    basis: per_100g
+    range: [55, 97]            # g de protéine pour 100 g
+    default_mode: dose
+    dose_label: "€/kg de protéine"
+    dose_divisor_g: 1000
+    serving_g: 30
+    include: ['cas[ée]ine', '\bcasein\b', 'micellaire', 'micellar']
+    exclude: ['barre', '\bbar\b', 'cookie', 'pancake', 'gainer', 'shaker', 'bouteille', 'pudding', 'cr[eè]me']
+
+  vitamine_c:
+    label: Vitamine C
+    active: vitamin_c
+    active_unit: mg
+    basis: per_unit
+    range_per_unit: [50, 2000]     # mg de vitamine C par gélule ou comprimé
+    default_mode: dose
+    dose_label: "€/g de vitamine C"
+    dose_divisor_mg: 1000
+    include: ['vitamine? c\b', 'vit\.? ?c\b', 'acide ascorbique', 'ascorbate', 'acerola', 'acérola', 'liposomale']
+    exclude: ['multivitamin', 'multi-vitamin', 'multivitamine', 's[ée]rum', 'cr[eè]me', 'shampo', 'visage', 'peau', 'zinc', 'magn[ée]sium', 'collag', 'vitamine d', 'effervescent.*zinc']
+    require_any: ['vitamine? c\b', 'vit\.? ?c\b', 'ascorbi', 'ac[ée]rola']
+
+  glutamine:
+    label: Glutamine
+    active: glutamine
+    active_unit: g
+    basis: per_100g
+    range: [60, 100]           # g de glutamine pour 100 g de poudre
+    range_per_unit_mg: [300, 2000]
+    default_mode: dose
+    dose_label: "€/kg de glutamine"
+    dose_divisor_g: 1000
+    serving_g: 5
+    include: ['glutamine']
+    exclude: ['barre', '\bbar\b', 'gainer', 'bcaa', 'complex', 'recovery', 'shaker']
 
 # Produits combinés : quand un produit matche plusieurs catégories, il apparaît dans chacune,
 # avec le badge « produit combiné » et le prix entier attribué à l'actif de la liste.
