@@ -4,6 +4,7 @@ import { confidenceLabel } from "@/lib/codes";
 import { ago, displayName, eur, num } from "@/lib/format";
 import { formatLabel, type Ranked } from "@/lib/rank";
 import { CodeVote, GoButton } from "./client";
+import { currentCountry } from "@/lib/country";
 
 export function unitFor(cat: string, mode: Mode, r: Ranked): string {
   const c = CATEGORY_BY_ID[cat];
@@ -13,7 +14,11 @@ export function unitFor(cat: string, mode: Mode, r: Ranked): string {
 
 export function OfferCard({ r, rank, mode, best }: { r: Ranked; rank: number; mode: Mode; best: boolean }) {
   const a = r.applied;
+  const country = currentCountry();
   const chips: React.ReactNode[] = [];
+  if (r.origin_country === country.code)
+    chips.push(<span key="made" className="chip made" title={r.origin_evidence ? `« ${r.origin_evidence} »` : undefined}>
+      <span aria-hidden="true">{country.flag}</span> {country.madeIn}</span>);
   if (a) chips.push(<span key="code" className="chip code">{a.code.code}{a.pct != null ? ` -${a.pct} %` : ""}</span>);
   if (a?.code.first_order_only) chips.push(<span key="first" className="chip first">1re commande uniquement</span>);
   if (a && a.confidence < 0.75) chips.push(<span key="conf" className="chip low">Fiabilité {confidenceLabel(a.confidence)}</span>);
@@ -35,6 +40,7 @@ export function OfferCard({ r, rank, mode, best }: { r: Ranked; rank: number; mo
   const sources: string[] = [];
   if (r.evidence) sources.push(`Teneur lue sur la fiche : « ${r.evidence.slice(0, 160)} ».`);
   if (r.note) sources.push(`Note : ${r.note}.`);
+  if (r.origin_country === country.code && r.origin_evidence) sources.push(`Origine lue sur la fiche : « ${r.origin_evidence} ».`);
   if (a) sources.push(`Code : ${a.code.source ?? "source non précisée"}${a.code.last_confirmed ? `, vérifié ${ago(String(a.code.last_confirmed))}` : ""}.`);
 
   return (

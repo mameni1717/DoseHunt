@@ -1,15 +1,16 @@
 import { q } from "./db.ts";
 import type { PromoCode } from "./codes.ts";
 import { rerank, type IndexRow, type RankOptions, type Ranked } from "./rank.ts";
+import { currentCountry } from "./country.ts";
 
-const COUNTRY = "FR";
+const COUNTRY = currentCountry().code;
 
 const ROW_SELECT = `
   select i.offer_id, i.category, i.subcategory, i.final_price, i.dose_value, i.kg_value, i.unit_value, i.unit_label,
          i.total_active, i.active_unit, i.calc, i.combined,
          o.price, o.compare_at_price, o.variant_title, o.flavour, o.grams, o.units, o.unit_word, o.url as offer_url,
          o.collected_at, o.site_id, s.name as site_name,
-         p.id as product_id, p.brand, p.name,
+         p.id as product_id, p.brand, p.name, p.origin_country, p.origin_evidence,
          a.amount, a.unit, a.basis, a.source, a.confidence, a.salt_label_mg, a.form, a.note, a.evidence
     from index_rows i
     join offers o on o.id = i.offer_id
@@ -23,6 +24,7 @@ export interface Filters {
   site?: string;
   brand?: string;
   form?: string;
+  madeIn?: boolean;     // seulement les produits fabriqués dans le pays du site
 }
 
 export async function getCodes(): Promise<PromoCode[]> {
@@ -38,11 +40,13 @@ export async function getRanking(cat: string, filters: Filters, opts: RankOption
     (!filters.sub || r.subcategory === filters.sub) &&
     (!filters.site || r.site_id === filters.site) &&
     (!filters.brand || (r.brand ?? "") === filters.brand) &&
-    (!filters.form || (r.form ?? "") === filters.form));
+    (!filters.form || (r.form ?? "") === filters.form) &&
+    (!filters.madeIn || r.origin_country === COUNTRY));
   return { rows: rerank(filtered, await getCodes(), opts), facets };
 }
 
 export interface Facets {
+  madeIn: number;       // nombre d'offres fabriquées dans le pays du site (avant filtres)
   sites: [string, string][];
   brands: string[];
   forms: string[];
@@ -58,6 +62,7 @@ function buildFacets(rows: IndexRow[]): Facets {
     if (r.form) forms.add(r.form);
   }
   return {
+    madeIn: new Set(rows.filter((r) => r.origin_country === COUNTRY).map((r) => r.product_id)).size,
     sites: [...sites.entries()].sort((a, b) => a[1].localeCompare(b[1], "fr")),
     brands: [...brands].sort((a, b) => a.localeCompare(b, "fr")),
     forms: [...forms].sort(),
@@ -81,7 +86,9 @@ export async function getProduct(id: number) {
   const [product] = await q<{
     id: number; site_id: string; site_name: string; brand: string | null; name: string; url: string;
     product_type: string | null; last_seen: Date; active: boolean;
-  }>(`select p.id, p.site_id, s.name as site_name, p.brand, p.name, p.url, p.product_type, p.last_seen, p.active
+    origin_country: string | null; origin_evidence: string | null;
+  }>(`select p.id, p.site_id, s.name as site_name, p.brand, p.name, p.url, p.product_type, p.last_seen, p.active,
+             p.origin_country, p.origin_evidence
         from products p join sites s on s.id = p.site_id where p.id = $1`, [id]);
   if (!product) return null;
   const actives = await q<{

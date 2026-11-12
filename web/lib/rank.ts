@@ -32,6 +32,8 @@ export interface IndexRow {
   product_id: number;
   brand: string | null;
   name: string;
+  origin_country?: string | null;
+  origin_evidence?: string | null;
   amount: number | null;
   unit: string | null;
   basis: string | null;

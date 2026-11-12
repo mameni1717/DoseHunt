@@ -65,6 +65,8 @@ products = Table(                # ce que contient le produit, tel que vendu par
     Column("url", String(500)),
     Column("body_hash", String(64)),                    # relecture des teneurs seulement si la fiche change
     Column("content_hint", String(60)),                 # contenance lue sur la page produit (« 120 gélules »)
+    Column("origin_country", String(2)),                # pays de fabrication déclaré sur la fiche (ISO : FR, IT…)
+    Column("origin_evidence", String(200)),             # extrait qui le prouve
     Column("tags", JSON),
     Column("first_seen", DateTime(timezone=True)),
     Column("last_seen", DateTime(timezone=True)),
@@ -236,7 +238,8 @@ code_votes = Table(              # retours « ce code marche / ne marche plus »
 # Colonnes ajoutées après la première version : ajoutées aux bases existantes au démarrage.
 LATE_COLUMNS = {"promo_codes": {"tiers": "JSON", "origin": "VARCHAR(10)", "evidence": "TEXT"},
                 "sites": {"affiliate_template": "TEXT", "base_url": "VARCHAR(200)"},
-                "products": {"content_hint": "VARCHAR(60)"}}
+                "products": {"content_hint": "VARCHAR(60)", "origin_country": "VARCHAR(2)",
+                             "origin_evidence": "VARCHAR(200)"}}
 
 
 def init_db(engine: Engine) -> None:

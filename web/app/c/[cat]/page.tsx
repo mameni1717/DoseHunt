@@ -5,6 +5,7 @@ import { OfferCard, unitFor } from "@/components/OfferCard";
 import { CATEGORY_BY_ID, type Mode } from "@/lib/categories";
 import { getRanking } from "@/lib/data";
 import { displayName, num, qs } from "@/lib/format";
+import { currentCountry } from "@/lib/country";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +24,10 @@ export default async function CategoryPage({ params, searchParams }: { params: P
   let mode = (sp.mode as Mode) || c.defaultMode;
   if (!c.modes[mode] || c.modes[mode].disabled) mode = c.defaultMode;
   const opts = { mode, allFormats: sp.all === "1", firstOrder: sp.first === "1", useCodes: sp.codes !== "0" };
-  const filters = { sub: sp.sub, site: sp.site, brand: sp.brand, form: sp.form };
+  const country = currentCountry();
+  const filters = { sub: sp.sub, site: sp.site, brand: sp.brand, form: sp.form, madeIn: sp.made === "1" };
   const { rows, facets } = await getRanking(cat, filters, opts);
-  const base: SP = { mode: sp.mode, sub: sp.sub, all: sp.all, first: sp.first, codes: sp.codes, site: sp.site, brand: sp.brand, form: sp.form };
+  const base: SP = { mode: sp.mode, sub: sp.sub, all: sp.all, first: sp.first, codes: sp.codes, site: sp.site, brand: sp.brand, form: sp.form, made: sp.made };
   const best = rows[0];
   const worst = rows[rows.length - 1];
 
@@ -59,6 +61,10 @@ export default async function CategoryPage({ params, searchParams }: { params: P
           <Link className="toggle" href={qs(base, { all: opts.allFormats ? undefined : "1" })}><b>{opts.allFormats ? "✓" : ""}</b> Afficher tous les formats</Link>
           <Link className="toggle" href={qs(base, { first: opts.firstOrder ? undefined : "1" })}><b>{opts.firstOrder ? "✓" : ""}</b> J'ai droit aux codes « 1re commande »</Link>
           <Link className="toggle" href={qs(base, { codes: opts.useCodes ? "0" : undefined })}><b>{opts.useCodes ? "✓" : ""}</b> Appliquer les codes promo</Link>
+          <Link className="toggle made" href={qs(base, { made: filters.madeIn ? undefined : "1" })} aria-pressed={filters.madeIn}>
+            <b>{filters.madeIn ? "✓" : ""}</b> <span aria-hidden="true">{country.flag}</span> {country.filter}
+            <small> ({facets.madeIn})</small>
+          </Link>
         </div>
         <form className="row" action={`/c/${cat}`}>
           {Object.entries(base).filter(([k, v]) => v && !["site", "brand", "form"].includes(k)).map(([k, v]) => (
@@ -90,7 +96,7 @@ export default async function CategoryPage({ params, searchParams }: { params: P
               <h1>{displayName(best.brand, best.name, " ")} : <em>{num(best.value ?? 0, 2)} {unitFor(cat, mode, best)}</em></h1>
               <p>
                 Meilleure offre en {c.modes[mode].label.toLowerCase()}, chez {best.site_name}
-                {best.applied ? `, avec le code ${best.applied.code.code}` : ""}. {rows.length} offre{rows.length > 1 ? "s" : ""} comparée{rows.length > 1 ? "s" : ""} en France.
+                {best.applied ? `, avec le code ${best.applied.code.code}` : ""}. {rows.length} offre{rows.length > 1 ? "s" : ""} comparée{rows.length > 1 ? "s" : ""} en {country.name}{filters.madeIn ? `, fabriquée${rows.length > 1 ? "s" : ""} en ${country.name}` : ""}.
               </p>
             </>
           ) : (
