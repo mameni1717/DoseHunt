@@ -1,0 +1,116 @@
+# Les 8 catégories du MVP (liste fixée le 11/11/2026).
+# Classement : un produit entre dans une catégorie si un mot-clé « include » apparaît dans
+# son titre, son type ou ses tags, et aucun mot-clé « exclude ». Expressions régulières, insensibles à la casse.
+# active      : ce qu'on compare en mode « dose d'actif »
+# basis       : per_100g (poudres) ou per_unit (gélules, barres, capsules)
+# range       : fourchette plausible ; hors fourchette = revue humaine, pas d'entrée dans l'index
+# active_unit : unité de stockage de la teneur
+
+categories:
+  whey:
+    label: Whey protéine
+    active: protein
+    active_unit: g
+    basis: per_100g
+    range: [45, 97]            # g de protéine pour 100 g
+    default_mode: dose
+    dose_label: "€/kg de protéine"
+    dose_divisor_g: 1000       # prix par kg de protéine
+    serving_g: 30              # mode « par unité » = portion de 30 g
+    include: ['\bwhey\b', 'isolate?\b', 'prot[ée]ine (v[ée]g[ée]tale|vegan|de pois|de riz)', 'vegan protein', 'protéines? végétales?', '\bclear protein\b', 'pea protein']
+    exclude: ['gainer', 'diet shake', 'minceur', '\begg\b', 'oeuf', 'œuf', 'cas[ée]ine', 'beurre', 'pancake', 'cookie', 'farine', "oat'?n'?whey", 'shaker', 'barre', '\bbar\b', 'boisson', 'shake.*bouteille', 'bouteille', '\bml\b', 'sample bundle', 'cr[eè]me de riz', 'porridge', 'peptistrong']
+    product_type_exclude: ['Protéine minceur', 'Farines', 'Hard Gainers', 'Prise de masse', 'Cuisine']
+    subcategories:
+      vegane: ['v[ée]g[ée]tal', 'vegan', 'v[ée]gane', '\bpois\b', '\briz\b', '\bpea\b', 'plant']
+      isolate: ['isolate?', '\biso\b', 'isolat', 'clear', 'hydro']
+      classique: []            # par défaut
+
+  collagene:
+    label: Collagène
+    active: collagen
+    active_unit: g
+    basis: per_100g            # poudres ; gélules en per_unit (mg)
+    range: [40, 100]
+    range_per_unit_mg: [100, 2000]
+    default_mode: dose
+    dose_label: "€/kg de collagène"
+    dose_divisor_g: 1000
+    include: ['collag', 'peptan', 'colartix', 'kollagen']
+    exclude: ['cr[eè]me', 'shampo', 'masque']
+
+  barres:
+    label: Barres protéinées
+    active: protein
+    active_unit: g
+    basis: per_unit
+    range_per_unit: [5, 40]    # g de protéine par barre
+    default_mode: unit
+    dose_label: "€/100 g de protéine"
+    dose_divisor_g: 100
+    include: ['barres?\b', '\bbars?\b', 'protein bar', 'crispy', 'crunch']
+    exclude: ['olympique', 'curl', 'traction', 'musculation', 'support de barre', 'rack', 'espalier', 'barreau', 'manchon', '\d+ ?cm\b', 'chrome', 'haltère', 'shaker']
+    require_any: ['prot', 'barre', '\bbar']
+
+  creatine:
+    label: Créatine
+    active: creatine
+    active_unit: g
+    basis: per_100g            # poudres ; gélules en per_unit (mg)
+    range: [50, 100]
+    range_per_unit_mg: [300, 2000]
+    default_mode: dose
+    dose_label: "€/kg de créatine"
+    dose_divisor_g: 1000
+    include: ['cr[ée]atine', 'creapure', '\bcrea\b']
+    exclude: ['gummies', 'gummy', 'sticks?\b', 'shaker', 'pre[- ]?workout']
+
+  zinc:
+    label: Zinc
+    active: zinc
+    active_unit: mg
+    basis: per_unit
+    range_per_unit: [2, 50]    # mg de zinc élément par gélule ou comprimé
+    default_mode: dose
+    dose_label: "€/g de zinc"
+    dose_divisor_mg: 1000
+    include: ['\bzinc\b', '\bzma\b', 'zinco', 'optizinc']
+    exclude: ['shampo', 'cr[eè]me', 'pommade', 'roues?', 'jantes?', 'v[ée]lo', 'peinture', 'argent zinc']
+
+  magnesium:
+    label: Magnésium
+    active: magnesium
+    active_unit: mg
+    basis: per_unit
+    range_per_unit: [20, 600]  # mg de magnésium élément par unité
+    default_mode: dose
+    dose_label: "€/g de magnésium"
+    dose_divisor_mg: 1000
+    include: ['magn[ée]sium', '\bzma\b', 'magnesio']
+    exclude: ['huile de magn', 'spray', 'sels? de bain', 'gel\b']
+
+  vitamine_d:
+    label: Vitamine D
+    active: vitamin_d
+    active_unit: UI
+    basis: per_unit
+    range_per_unit: [200, 10000]   # UI par gélule ou par goutte (gouttes : 100 à 2 000 en pratique)
+    default_mode: dose
+    dose_label: "€/100 000 UI"
+    dose_divisor_ui: 100000
+    include: ['vitamine? d3?\b', 'vit\.? ?d3?\b', '\bd3\b', 'cholécalciférol', 'cholecalciferol']
+    exclude: ['multivitamin', 'multi-vitamin', 'multivitamine']
+
+  omega3:
+    label: Oméga-3
+    active: epa_dha
+    active_unit: mg
+    basis: per_unit
+    range_per_unit: [50, 900]      # mg d'EPA + DHA par capsule (les huiles les plus concentrées : ~ 700 mg)
+    default_mode: dose
+    dose_label: "€/g d'EPA + DHA"
+    dose_divisor_mg: 1000
+    include: ['om[ée]ga[ -]?3', '\bepa\b', '\bdha\b', 'krill', 'huile de poisson', 'fish oil', 'epax', 'animal omega']
+    exclude: ['om[ée]ga 6', 'om[ée]ga[- ]?3-6-9', 'chia']
+
+# Produits combinés : quand un produit matche plusieurs catégories, il apparaît dans chacune,
+# avec le badge « produit combiné » et le prix entier attribué à l'actif de la liste.

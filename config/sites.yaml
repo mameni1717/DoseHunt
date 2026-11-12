@@ -1,0 +1,304 @@
+# Les 25 sites suivis pour la France (liste fixée le 11/11/2026).
+# collector : shopify | shopify_headless | prestashop | magento | custom | affiliate_feed
+# status    : active (collecte automatique en place) | todo (collecteur à écrire) | decide (décision en attente)
+# Plateformes vérifiées en direct le 11/11/2026, sauf mention « probable ».
+
+defaults:
+  country: FR
+  currency: EUR
+  delay_seconds: 2.0        # pause entre deux requêtes sur un même site
+  page_size: 250            # maximum autorisé par Shopify pour products.json
+
+sites:
+  # ---------- Shopify : catalogue JSON (products.json) ----------
+  - id: toutelanutrition
+    name: Toutelanutrition
+    base_url: https://www.toutelanutrition.com
+    platform: shopify
+    collector: shopify
+    status: active
+    notes: "335 produits relevés le 11/11. product_type fiable (whey, Isolate, Créatine, barres, Minéraux…). Revendeur multimarques."
+
+  - id: bodyandfit
+    name: Body&Fit
+    base_url: https://www.bodyandfit.com
+    path_prefix: /fr-fr
+    platform: shopify
+    collector: shopify
+    status: active
+    notes: "244 produits. product_type inutile (Consumable) : classement par titre. Noms d'options parfois en néerlandais (Smaak/Inhoud), formats parfois sans unité (« 45.0 »)."
+
+  - id: fitnessboutique
+    name: Fitness Boutique
+    base_url: https://www.fitnessboutique.fr
+    platform: shopify
+    collector: shopify
+    status: active
+    filters:
+      product_type_in: [DIETETIQUE]   # 2 075 produits dont matériel de musculation (« Barre olympique »…)
+    notes: "Gros catalogue, seule la diététique nous concerne."
+
+  - id: nutrimuscle
+    name: Nutrimuscle
+    base_url: https://www.nutrimuscle.com
+    platform: shopify
+    collector: shopify
+    status: blocked
+    notes: >-
+      Le 11/11/2026, le site renvoie 403 à notre robot identifié (products.json). On ne contourne pas ce refus :
+      demander un accès (partenariat ou flux d'affiliation), puis repasser en active ou en affiliate_feed.
+
+  - id: raptor
+    name: Raptor Nutrition
+    base_url: https://raptornutrition.fr
+    platform: shopify
+    collector: shopify
+    status: active
+    notes: "44 produits. Formats en durée (1 mois / 3 mois) : nombre de gélules à lire dans la description."
+
+  - id: nutrimea
+    name: Nutrimea
+    base_url: https://www.nutrimea.com
+    path_prefix: /fr-fr
+    platform: shopify
+    collector: shopify
+    status: active
+    filters:
+      require_french: true      # le catalogue mélange des fiches néerlandaises, italiennes, allemandes
+    notes: "429 produits, plusieurs langues mélangées dans le même catalogue."
+
+  - id: biotechusa
+    name: BioTechUSA
+    base_url: https://shop.biotechusa.fr
+    platform: shopify
+    collector: shopify
+    status: active
+    notes: "565 produits. Format souvent dans le titre (« Zinc Duo - 60 comprimés »). compare_at_price à 0.00 = pas de prix barré."
+
+  - id: amnutrition
+    name: AM Nutrition
+    base_url: https://www.amnutrition.fr
+    platform: shopify
+    collector: shopify
+    status: active
+    notes: "Plateforme détectée le 11/11/2026 (products.json répond)."
+
+  # ---------- Shopify headless : sitemap + données structurées ----------
+  - id: greenwhey
+    name: Greenwhey
+    base_url: https://greenwhey.com
+    platform: shopify (headless)
+    collector: shopify_headless
+    status: active
+    notes: "products.json renvoie 404. Sitemap /sitemap/products/1.xml (47 fiches) + JSON-LD ProductGroup avec variantes et prix."
+
+  # ---------- PrestaShop : listings JSON des catégories + fiches + déclinaisons ----------
+  - id: fitadium
+    name: Fitadium
+    base_url: https://www.fitadium.com
+    platform: prestashop
+    collector: prestashop
+    status: active
+    notes: >-
+      1 702 produits (11/11). Catégories découvertes depuis l'accueil. robots.txt interdit « *?controller* » :
+      pas de lecture des déclinaisons, prix de la déclinaison par défaut (le format est en général dans le nom,
+      les déclinaisons sont des parfums).
+  - id: nutriandco
+    name: Nutri&Co
+    base_url: https://nutriandco.com
+    path_prefix: /fr
+    platform: prestashop
+    collector: prestashop
+    status: active
+    filters:
+      sitemap_product_pattern: '/fr/produits/[^/]+$'
+    notes: "URLs personnalisées (/fr/produits/magnesium). 70 fiches dans le sitemap, pas de catégories numérotées."
+  - id: nutripure
+    name: Nutripure
+    base_url: https://www.nutripure.fr
+    path_prefix: /fr
+    platform: prestashop
+    collector: prestashop
+    status: active
+    filters:
+      listing_urls: [/fr/29-gamme-produits]
+    notes: "La catégorie « Gamme produits » liste les 114 produits. Composition dans l'onglet #compo."
+  - id: stc
+    name: STC Nutrition
+    base_url: https://www.stc-nutrition.fr
+    path_prefix: /fr
+    platform: prestashop
+    collector: prestashop
+    status: active
+    filters:
+      listing_urls: [/fr/1911-produits]
+    notes: "Le sitemap ne liste que le blog. La catégorie « Produits » liste les 58 produits."
+
+  # ---------- Magento : sitemap + fiche (JSON-LD, et jsonConfig pour les produits configurables) ----------
+  - id: eafit
+    name: EAFIT
+    base_url: https://www.eafit.com
+    platform: magento
+    collector: magento
+    status: active
+    filters:
+      sitemaps: [/media/sitemap/eafit/secure_sitemap_index.xml]
+      product_pattern: '^https://www\.eafit\.com/[a-z0-9-]+\.html$'
+      prefilter_url: true
+    notes: >-
+      Une fiche par parfum et par format, JSON-LD Product avec prix. robots.txt interdit tout paramètre d'URL (/*?) :
+      le collecteur n'en utilise aucun.
+  - id: hsn
+    name: HSN
+    base_url: https://www.hsnstore.fr
+    platform: magento 2 (Hyvä)
+    collector: magento
+    status: active
+    filters:
+      sitemaps: [/sitemaps/dfr/sitemap.xml]
+      product_pattern: '^https://www\.hsnstore\.fr/marques/[^/]+/[^/]+$'
+      prefilter_url: true
+    notes: >-
+      Déclinaisons (format × parfum, jusqu'à 173 par fiche) lues dans initConfigurableOptions (jsonConfig Magento).
+      Fiches très lourdes (7 Mo) : compter 2 à 3 s par fiche. Un tableau nutritionnel par parfum : le premier est retenu.
+  - id: allnutrition
+    name: AllNutrition
+    base_url: https://allnutrition.com
+    platform: ASP.NET (boutique polonaise SFD)
+    collector: page
+    status: paused
+    filters:
+      start_urls: [/]
+      product_pattern: '-opis\d+\.html$'
+      prefilter_url: true
+    notes: >-
+      Mis en pause le 11/11/2026 : pas de boutique française (allnutrition.fr n'existe pas, /fr renvoie 404) et devise
+      ambiguë (titre « 29 € », données de prix « 29.9 PLN »). À réactiver seulement après vérification de la devise
+      et de la livraison en France.
+
+  # ---------- Sur-mesure : collecteur « fiches » réglé par site ----------
+  - id: myprotein
+    name: Myprotein
+    base_url: https://fr.myprotein.com
+    platform: custom (THG)
+    collector: page
+    status: active
+    filters:
+      sitemaps: [/sitemapindex-product.xml.gz]
+      product_pattern: '/p/'
+      prefilter_url: true
+    notes: "JSON-LD ProductGroup : toutes les déclinaisons (format × parfum) et leurs prix sur une seule fiche."
+  - id: prozis
+    name: Prozis
+    base_url: https://www.prozis.com
+    path_prefix: /fr/fr
+    platform: custom
+    collector: page
+    status: blocked
+    filters:
+      sitemaps: [https://www.prozis.com/fr/fr/sitemap_products.gz]
+      product_pattern: '/fr/fr/'
+      prefilter_url: true
+      hook: prozis
+    notes: >-
+      Une fiche par format. JSON-LD enveloppé dans des commentaires CDATA. Prix promo et prix barré dans le JSON-LD
+      (BNOVEMBER déjà inclus dans le prix affiché : non cumulé). Tableau nutritionnel lu sur /product/nutrition-table.
+      Le 11/11/2026, Cloudflare répond 429 à notre robot sur tout le site (robots.txt compris), à deux heures
+      d'intervalle : on ne contourne pas. Demander l'accès (programme d'affiliation Prozis), puis repasser en active.
+  - id: bulk
+    name: Bulk
+    base_url: https://www.bulk.com
+    path_prefix: /fr
+    platform: custom
+    collector: page
+    status: active
+    filters:
+      sitemaps: [/sitemap_index.xml]
+      sitemap_child_filter: 'fr|product'
+      product_pattern: '/fr/products/'
+      prefilter_url: true
+      sku_format: '-(?P<flavour>[A-Z0-9]{3,5})-(?P<size>\d{4})(?:-[A-Z]{2,3})?$'
+    notes: "Une offre JSON-LD par déclinaison sans libellé : format lu dans la référence (BPB-PWPC-CHOC-0450 = 450 g)."
+  - id: zumub
+    name: Zumub
+    base_url: https://www.zumub.com
+    path_prefix: /FR
+    platform: custom (osCommerce)
+    collector: page
+    status: active
+    filters:
+      start_urls: [/FR/]
+      category_pattern: '^https://www\.zumub\.com/FR/(?:[a-z0-9-]+-c-[\d_]+|(?:nutrition-sportive|sante-et-bien-etre|proteines?|whey|creatine|vitamines?|mineraux|magnesium|zinc|omega-3|collagene|barres?-proteinees?)(?:/[a-z0-9-]+)?)$'
+      product_pattern: '-p-\d+$'
+      prefilter_url: true
+    delay_seconds: 3.5
+    notes: >-
+      Pas de sitemap : parcours des catégories. JSON-LD ProductGroup avec formats, prix et prix barrés.
+      A répondu 429 (trop de requêtes) à 2 s d'intervalle le 11/11/2026 : rythme ralenti à 3,5 s.
+  - id: optigura
+    name: Optigura
+    base_url: https://www.optigura.fr
+    platform: custom (Nuxt)
+    collector: page
+    status: active
+    filters:
+      start_urls: [/]
+      category_pattern: '^https://www\.optigura\.fr/store/[a-z0-9-]+$'
+      product_pattern: '^https://www\.optigura\.fr/product/[a-z0-9-]+$'
+      variants_from: html_list
+      prefilter_url: true
+    notes: "Pas de sitemap. Le JSON-LD ne donne qu'une fourchette : tailles et prix lus dans la liste HTML (.opt1)."
+  - id: ericfavre
+    name: Eric Favre
+    base_url: https://www.ericfavre.com
+    path_prefix: /fr_fr
+    platform: custom
+    collector: page
+    status: active
+    filters:
+      sitemaps: [/fr_fr/exports/sitemap_index.xml]
+      sitemap_child_filter: 'fr_fr|_FR'
+      product_pattern: '/fr_fr/.*-p-\d+-o-\d+\.htm$'
+      prefilter_url: true
+    notes: "Une URL par option (-p-1031-o-2059.htm), JSON-LD Product avec prix."
+  - id: decathlon
+    name: Decathlon
+    base_url: https://www.decathlon.fr
+    platform: marketplace
+    collector: page
+    status: blocked
+    filters:
+      sitemaps: [/decathlon-products-index.xml, /marketplace-products-index.xml]
+      product_pattern: '/p/'
+      prefilter_url: true
+    notes: >-
+      Sitemaps de tout le catalogue de sport : seules les URL évoquant nos catégories sont ouvertes. Une fiche par
+      variante. Le 11/11/2026, les fiches produits renvoient 403 à notre robot identifié : on ne contourne pas.
+      Demander l'accès (programme d'affiliation Decathlon, flux produits), puis repasser en active.
+
+  # ---------- Cas particuliers ----------
+  - id: theproteinworks
+    name: The Protein Works
+    base_url: https://www.theproteinworks.com
+    platform: custom (Cloudflare)
+    collector: affiliate_feed
+    status: needs_feed
+    filters:
+      feed_env: DOSEHUNT_FEED_THEPROTEINWORKS
+    notes: >-
+      Défi Cloudflare même pour un vrai navigateur (vérifié le 11/11/2026). Seule voie : le flux produits de son
+      programme d'affiliation. Le statut passe à active dès que DOSEHUNT_FEED_THEPROTEINWORKS est renseigné.
+  - id: nu3
+    name: nu3 (via Redcare)
+    base_url: https://www.redcare-pharmacie.fr
+    platform: redirigé vers Redcare
+    collector: page
+    status: active
+    filters:
+      sitemaps: [/sitemap/sitemap.xml]
+      sitemap_child_filter: 'products-'
+      product_pattern: '/\d{6,}/nu3-[^/]+\.htm$'
+    notes: >-
+      Décidé le 11/11/2026 : nu3 n'a plus de site propre, on suit les produits nu3 vendus par Redcare Pharmacie.
+      La page marque est interdite aux robots (robots.txt) : découverte par les sitemaps produits (fiches autorisées),
+      filtrés sur les URL « nu3-… ». Format souvent absent du titre : lu dans « Poids net » ou « Contenance ».

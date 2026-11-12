@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dosehunt"
+version = "0.1.0"
+description = "Collectes automatiques DoseHunt : prix réels par unité active des compléments alimentaires"
+requires-python = ">=3.11"
+dependencies = [
+  "httpx>=0.27",
+  "PyYAML>=6",
+  "SQLAlchemy>=2.0",
+]
+
+[project.optional-dependencies]
+postgres = ["psycopg[binary]>=3.1"]
+dev = ["pytest>=8", "respx>=0.21"]
+
+[project.scripts]
+dosehunt = "dosehunt.cli:main"
+
+[tool.setuptools]
+packages = ["dosehunt", "dosehunt.collectors"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

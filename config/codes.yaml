@@ -1,0 +1,48 @@
+# Codes promo connus (saisie manuelle au départ, repris du prototype du 11/11/2026).
+# discount_type : percent | fixed
+# confidence    : 0 à 1 ; sous min_confidence le code est affiché mais n'entre pas dans le prix final.
+# applies_to    : all | liste de catégories ; exclude_handles : fiches exclues
+min_confidence: 0.5
+
+codes:
+  - code: BNOVEMBER
+    site: prozis
+    country: FR
+    discount_type: percent
+    value: 20
+    first_order_only: false
+    stackable_with_sale: false
+    source: "affiché sur les fiches produits Prozis"
+    confidence: 0.9
+    last_confirmed: 2026-11-11
+    notes: "La remise varie selon la fiche (15 à 20 %) : la valeur par fiche sera relevée par le collecteur Prozis."
+
+  - code: NUTRITION10
+    site: nutripure
+    country: FR
+    discount_type: percent
+    value: 10
+    first_order_only: false
+    source: "code influenceur publié par EDP Nutrition (date non précisée)"
+    confidence: 0.6
+    last_confirmed: 2026-11-11
+
+  - code: CARRIO
+    site: nutripure
+    country: FR
+    discount_type: percent
+    value: 10
+    first_order_only: true
+    source: "page officielle « code promo » de Nutripure"
+    confidence: 0.9
+    last_confirmed: 2026-11-11
+
+  - code: NMA_QFITLIFE
+    site: nutrimuscle
+    country: FR
+    discount_type: percent
+    value: 5
+    first_order_only: false
+    source: "code influenceur Quentin Fitlife, indiqué vérifié le 16/07/2026"
+    confidence: 0.6
+    last_confirmed: 2026-07-16

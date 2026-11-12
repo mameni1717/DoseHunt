@@ -1,0 +1,32 @@
+# Teneurs vérifiées à la main. Prioritaires sur l'extraction automatique.
+#
+# Sert dans deux cas :
+#   - un site refuse ses fiches à notre robot, mais publie ses prix ailleurs (Nutripure : listing autorisé,
+#     fiches en 403) : la teneur, qui change rarement, est saisie ici ; les prix restent relevés chaque jour ;
+#   - une fiche mal rédigée (unité fausse, teneur absente) qu'on a vérifiée sur l'étiquette.
+#
+# match : identifiant du produit sur le site (external_id) ou expression régulière sur le titre
+# format : contenu de la déclinaison relevée quand la fiche est inaccessible (listing seul)
+# Revoir ces valeurs tous les 6 mois, avec la liste des sites.
+
+products:
+  - site: nutripure
+    match: "146"
+    title: Zinc Bisglycinate
+    category: zinc
+    amount: 15
+    unit: mg
+    basis: per_unit
+    form: bisglycinate
+    format: "90 gélules"
+    source: "tableau nutritionnel de la fiche Nutripure, relevé le 11/11/2026 : 15 mg de zinc par gélule (dose journalière 1 gélule)"
+
+  - site: nutripure
+    match: "13"
+    title: Whey Isolate Native
+    category: whey
+    amount: 94
+    unit: g
+    basis: per_100g
+    format: "750 g"
+    source: "fiche Nutripure relevée pour le prototype le 11/11/2026 : 94 g de protéines pour 100 g"
