@@ -82,6 +82,8 @@ ol.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
 .chip.auto { color: var(--good); border-color: currentColor; }
 .chip.first { color: var(--warn); border-color: currentColor; }
 .chip.trap { background: var(--warn-soft); color: var(--warn); border-color: currentColor; }
+.chip.made { color: #1d3f8f; border-color: #c9d3ea; background: #f2f5fb; }
+.toggle.made small { color: var(--muted, #777); font-weight: 400; }
 .chip.low { color: var(--muted); }
 .price { text-align: right; min-width: 160px; display: grid; gap: 6px; justify-items: end; }
 .unit { font: 800 38px/0.95 var(--display); font-variant-numeric: tabular-nums; letter-spacing: -.01em; }

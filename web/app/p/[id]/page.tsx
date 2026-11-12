@@ -5,6 +5,7 @@ import { CodeVote, CopyCode, GoButton } from "@/components/client";
 import { CATEGORY_BY_ID, activeLabel } from "@/lib/categories";
 import { confidenceLabel, effectiveConfidence, percentFor } from "@/lib/codes";
 import { getProduct } from "@/lib/data";
+import { currentCountry } from "@/lib/country";
 import { ago, dateFr, displayName, eur, num } from "@/lib/format";
 import { rerank, formatLabel } from "@/lib/rank";
 
@@ -49,6 +50,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const id = Number((await params).id);
   if (!Number.isFinite(id)) notFound();
   const d = await getProduct(id);
+  const country = currentCountry();
   if (!d) notFound();
   const { product, actives, rows, offers, history, codes } = d;
   const ranked = rerank(rows, codes, { mode: "dose", allFormats: true, firstOrder: false, useCodes: true });
@@ -63,6 +65,11 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         <div>
           <p><Link href={`/c/${actives[0]?.category ?? ""}`}>← {CATEGORY_BY_ID[actives[0]?.category ?? ""]?.label ?? "Catégories"}</Link></p>
           <h1>{displayName(product.brand, product.name)}</h1>
+          {product.origin_country === country.code && (
+            <p><span className="chip made" title={product.origin_evidence ? `« ${product.origin_evidence} »` : undefined}>
+              <span aria-hidden="true">{country.flag}</span> {country.madeIn}</span>
+              {product.origin_evidence && <span className="note-small"> — d'après la fiche : « {product.origin_evidence} »</span>}</p>
+          )}
           <p>Vendu par {product.site_name} · relevé {ago(product.last_seen)} · <a href={product.url} rel="nofollow noopener" target="_blank">fiche du marchand</a></p>
         </div>
       </section>

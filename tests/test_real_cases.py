@@ -243,3 +243,37 @@ def test_par_dose_header_uses_dose_size_found_elsewhere():
             "<tr><td>Collagène bovin hydrolysé</td><td>10000 mg</td><td>10000 mg</td></tr></table>")
     body = with_nutrition_tables(page, page)
     assert extract("collagene", body, "Collagène hydrolysé (bovin) en poudre", parse_format("1Kg")).amount == 100
+
+
+def test_origin_detection():
+    from dosehunt.origin import detect_origin
+    assert detect_origin("<p>Fabriqué en France par Peptan® 🇫🇷</p>")[0] == "FR"
+    assert detect_origin("<p>Conçue et fabriquée en France</p>")[0] == "FR"
+    assert detect_origin("<table><tr><td>Pays de fabrication</td><td>France</td></tr></table>")[0] == "FR"
+    assert detect_origin("<p>Conçu en France, fabriqué en Italie</p>")[0] == "IT"
+    for no in ("<p>Marque française</p>", "<p>Lait d'origine France</p>", "<p>Fabriqué en Europe</p>",
+               "<p>fabriqué avec du lait collecté en France</p>", "<p>Ce produit n'est pas fabriqué en France</p>"):
+        assert detect_origin(no)[0] is None, no
+
+
+def test_duplicate_protein_row_keeps_plausible_value():
+    body = ("<table><tr><th></th><th>100 g</th><th>AR</th><th>25 g</th></tr>"
+            "<tr><td>Protéines</td><td>3,2 g</td><td>**</td><td>0,8 g</td></tr>"
+            "<tr><td>Protéines</td><td>74 g</td><td>148%</td><td>19 g</td></tr></table>")
+    assert extract("whey", body, "Vegan Protein", parse_format("500 g")).amount == 74
+
+
+def test_creatine_caps_dose_amount_falls_back_to_title():
+    ac = extract("creatine", "<p>3000 mg de créatine</p>", "Créatine Excell 1000mg", parse_format("100 gélules"))
+    assert ac.amount == 1000 and ac.unit == "mg"
+
+
+def test_portions_times_serving_size():
+    from dosehunt.pipeline import _format_from_text
+    from dosehunt.models import RawProduct, RawVariant
+    from dosehunt.formats import variant_format
+    v = RawVariant(variant_id="1", title="Impact Whey 120portions Chocolat", price=99.0)
+    p = RawProduct(site_id="x", external_id="1", handle="", title="Impact Whey", url="",
+                   body_html="<p>Taille de la portion : 30 g</p>", variants=[v])
+    f = _format_from_text(variant_format(p, v), p, "per_100g", "whey", 1)
+    assert f.total_grams == 3600

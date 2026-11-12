@@ -106,7 +106,7 @@ def table_rows(text: str) -> list[list[str]]:
     return [[c.strip() for c in ln.split("|")] for ln in text.split("\n") if "|" in ln]
 
 
-def table_value(text: str, row_rx: str, want: str) -> Optional[tuple[float, str, str]]:
+def table_value(text: str, row_rx: str, want: str, ok=None) -> Optional[tuple[float, str, str]]:
     """Valeur d'une ligne du tableau nutritionnel. want = '100g' ou 'unit'. Renvoie (valeur, unité, preuve)."""
     rows = table_rows(text)
     col100 = colunit = None
@@ -132,6 +132,8 @@ def table_value(text: str, row_rx: str, want: str) -> Optional[tuple[float, str,
             for cell in cells:
                 m = re.match(r"\s*<?\s*" + N + r"\s*(mg|g|µg|μg|ui|iu)?", cell.lower())
                 if m:
+                    if ok is not None and not ok(_f(m.group(1))):
+                        break                           # ligne en double ou mal étiquetée : on lit la suivante
                     return _f(m.group(1)), (m.group(2) or "g").replace("μ", "µ"), " | ".join(row)
     return None
 
@@ -179,7 +181,8 @@ def bar_weight(text: str) -> Optional[float]:
 # --------------------------------------------------------------------------- par catégorie
 
 def _protein_per_100g(text: str) -> Optional[ActiveContent]:
-    tv = table_value(text, r"prot[ée]ines?|protein", "100g")
+    tv = table_value(text, r"prot[ée]ines?|protein", "100g", ok=lambda x: x >= 20) \
+        or table_value(text, r"prot[ée]ines?|protein", "100g")
     if tv and tv[1] == "g":
         return ActiveContent("whey", "protein", tv[0], "g", "per_100g", "regex_table", 0.95, tv[2])
     ts = table_serving_to_100g(text, r"prot[ée]ines?|protein")
@@ -379,7 +382,14 @@ def _powder_or_caps(text: str, category: str, active: str, noun_rx: str, title: 
                 dd = daily_dose(text)
                 upd = dd.units_per_dose or 1
                 conf = 0.9 if dd.units_per_dose else 0.6
-            return ActiveContent(category, active, round(_f(m.group(1)) / upd, 1), "mg", "per_unit", "regex_text", conf,
+            amount = round(_f(m.group(1)) / upd, 1)
+            cap = 2000                                   # au-delà, impossible dans une seule gélule
+            tm = re.search(r"(\d{3,4})\s*mg", title, re.I)
+            if amount > cap and tm and 300 <= int(tm.group(1)) <= cap:
+                # « 3 000 mg » lus pour la dose entière ; le titre donne la quantité par gélule (« Excell 1000mg »)
+                return ActiveContent(category, active, float(tm.group(1)), "mg", "per_unit", "regex_text", 0.85,
+                                     title, note=f"{amount:g} mg lus pour une dose ; {tm.group(1)} mg par unité d'après le titre")
+            return ActiveContent(category, active, amount, "mg", "per_unit", "regex_text", conf,
                                  m.group(0), units_per_dose=upd)
         return None
     m = re.search(N + r"\s*g\s*(?:de\s+|d['’]\s*)?(?:peptides de\s+)?(?:" + noun_rx + r").{0,50}?(?:par|pour|/|dans)\s*(?:une\s*)?(?:portion|dose|mesure|stick|sachet|shaker)?\s*(?:de\s*)?" + N + r"\s*g",

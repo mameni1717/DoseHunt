@@ -245,6 +245,38 @@ def _fill_units(fmt: Format, ac: Optional[ActiveContent], p: RawProduct) -> Form
     return fmt
 
 
+def _format_from_text(fmt: Format, p: RawProduct, basis: str, category: str, n_variants: int) -> Format:
+    """Libellé muet sur le poids ou le nombre d'unités : on le cherche dans le texte de la fiche.
+
+    « 120 portions » + « Dose : 30 g » = 3,6 kg ; « Poids net : 500 g » ; « Boîte de 60 gélules ».
+    Le poids lu dans la fiche ne vaut que pour un produit à format unique : avec plusieurs tailles,
+    il ne dirait pas laquelle.
+    """
+    if fmt.months is not None:
+        return fmt
+    text = extract.html_to_text(p.body_html or "")
+    if basis == "per_100g" and fmt.total_grams is None:
+        size = extract.serving_size(text)
+        if fmt.total_units and fmt.unit_word in ("dose", "stick", None) and size:
+            fmt.grams, fmt.units, fmt.unit_word = round(fmt.total_units * size, 1), None, None
+            fmt.confidence = max(min(fmt.confidence or 0.75, 0.75), 0.6)
+            return fmt
+        if n_variants == 1 or fmt.confidence == 0:
+            grams, _ = extract.content_from_text(p.body_html)
+            if grams is None:
+                m = re.search(r"Contenance\s*:\s*([\d.,]+)\s*(kg|g)\b", text, re.I)      # format le plus cité sur la page
+                if m:
+                    grams = float(m.group(1).replace(",", ".")) * (1000 if m.group(2).lower() == "kg" else 1)
+            if grams and 20 <= grams <= 15000:
+                fmt.grams, fmt.confidence = grams, max(fmt.confidence, 0.7)
+    elif basis == "per_unit" and fmt.total_units is None and category != "barres" and (n_variants == 1 or fmt.confidence == 0):
+        _, units = extract.content_from_text(p.body_html)
+        units = units or extract.units_from_text(p.body_html)
+        if units:
+            fmt.units, fmt.unit_word, fmt.confidence = units, fmt.unit_word or "gélule", max(fmt.confidence, 0.7)
+    return fmt
+
+
 def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Code], stats: RunStats,
                     *, use_llm: bool = True, reextract: bool = False, fetch_page=None) -> None:
     stats.products_seen += 1
@@ -257,7 +289,8 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
     stats.products_in_scope += 1
     now = now_utc()
     bh = _body_hash(p)
-    prev = conn.execute(select(db.products.c.id, db.products.c.body_hash, db.products.c.content_hint).where(and_(
+    prev = conn.execute(select(db.products.c.id, db.products.c.body_hash, db.products.c.content_hint,
+                               db.products.c.origin_country).where(and_(
         db.products.c.site_id == site.id, db.products.c.external_id == p.external_id))).first()
     body_changed = prev is None or prev.body_hash != bh
     product_id = upsert(conn, db.products, {
@@ -266,6 +299,18 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
         "url": p.url, "body_hash": bh, "tags": p.tags, "first_seen": now, "last_seen": now, "active": True,
     }, ["site_id", "external_id"], update_cols=["handle", "brand", "name", "product_type", "canonical_key",
                                                  "url", "body_hash", "tags", "last_seen", "active"])
+
+    # Pays de fabrication : fiche du catalogue, sinon page produit (Shopify : la description JSON est souvent courte).
+    if prev is None or body_changed or reextract:
+        from .origin import detect_origin
+        origin, evidence = detect_origin(p.body_html, p.title)
+        if origin is None and fetch_page is not None and p.source == "shopify_json":
+            page_html = fetch_page(p.url)
+            if page_html:
+                from .collectors.page import zone_html
+                origin, evidence = detect_origin(zone_html(page_html), p.title)
+        conn.execute(update(db.products).where(db.products.c.id == product_id).values(
+            origin_country=origin, origin_evidence=evidence))
 
     # Contenance absente des libellés (« Default Title », parfum seul) : on la lit une fois sur la page produit.
     hint = prev.content_hint if prev is not None and not body_changed and not reextract else None
@@ -319,6 +364,7 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
                     fmt.units, fmt.unit_word = int(m_b.group(1)), "barre"
             if cl.category == "barres" and fmt.total_units is None and fmt.grams and fmt.grams <= 150:
                 fmt.units, fmt.unit_grams, fmt.grams, fmt.unit_word = 1, fmt.grams, None, "barre"   # « 60g » : une barre
+            fmt = _format_from_text(fmt, p, basis, cl.category, len(p.variants))
             if ac and ac.basis == "per_unit" and ac.category in ("creatine", "collagene") and fmt.total_units is None:
                 fmt.confidence = 0
             offer_id = upsert(conn, db.offers, {
@@ -378,10 +424,17 @@ def run_site(engine: Engine, site: Site, *, client=None, use_llm: bool = True, l
     status, error = "ok", None
     seen_ids: set[str] = set()
 
+    page_cache: dict[str, Optional[str]] = {}
+
     def fetch_page(url: str) -> Optional[str]:
+        if url in page_cache:                            # même page demandée pour l'origine, le format, la teneur
+            return page_cache[url]
+        if len(page_cache) > 20:
+            page_cache.clear()
         try:
             resp = collector.client.get(url, accept_404=True)
-            return resp.text if resp is not None else None
+            page_cache[url] = resp.text if resp is not None else None
+            return page_cache[url]
         except Exception as exc:                         # noqa: BLE001 — une page manquante ne bloque pas la collecte
             log.info("%s : page produit illisible %s (%s)", site.id, url, exc)
             return None
