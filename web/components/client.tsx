@@ -177,3 +177,10 @@ export function AlertForm({ product, cat, sub, units, defaults }: {
     </form>
   );
 }
+
+/** Photo du marchand ; si elle ne se charge pas (lien protégé, image retirée), une vignette neutre la remplace. */
+export function ProductImage({ src, letter, size = 72 }: { src?: string | null; letter: string; size?: number }) {
+  const [broken, setBroken] = useState(!src);
+  if (broken) return <span className="nopic" aria-hidden="true">{letter}</span>;
+  return <img src={src!} alt="" loading="lazy" width={size} height={size} referrerPolicy="no-referrer" onError={() => setBroken(true)} />;
+}

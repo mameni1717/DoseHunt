@@ -3,7 +3,7 @@ import { CATEGORY_BY_ID, activeLabel, modeDef, type Mode } from "@/lib/categorie
 import { confidenceLabel } from "@/lib/codes";
 import { ago, displayName, eur, num, snippet, stripBrand } from "@/lib/format";
 import { formatLabel, type Ranked } from "@/lib/rank";
-import { CodeVote, CompareToggle, GoButton } from "./client";
+import { CodeVote, CompareToggle, GoButton, ProductImage } from "./client";
 import { currentCountry } from "@/lib/country";
 
 export function unitFor(cat: string, mode: Mode, r: Ranked): string {
@@ -61,9 +61,7 @@ export function OfferCard({ r, rank, mode, best }: { r: Ranked; rank: number; mo
     <li id={`r${rank}`} className={`offer${best ? " best" : ""}${r.available ? "" : " soldout"}`}>
       <div className="rank">{rank}</div>
       <div className="pic">
-        {r.image_url
-          ? <img src={r.image_url} alt="" loading="lazy" width={72} height={72} referrerPolicy="no-referrer" />
-          : <span className="nopic" aria-hidden="true">{cat.short.slice(0, 1)}</span>}
+        <ProductImage src={r.image_url} letter={cat.short.slice(0, 1)} />
       </div>
       <div className="prod">
         {r.brand && <div className="brandline">{r.brand}</div>}
