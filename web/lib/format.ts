@@ -32,3 +32,25 @@ export function displayName(brand: string | null | undefined, name: string, sep 
   const norm = (s: string) => s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
   return norm(name).startsWith(norm(brand)) ? name : `${brand}${sep}${name}`;
 }
+
+/** Nom sans la marque en tête (la marque est affichée à part sur les cartes). */
+export function stripBrand(brand: string | null | undefined, name: string): string {
+  if (!brand) return name;
+  const norm = (x: string) => x.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const n = norm(name), b = norm(brand).trim();
+  if (b && n.startsWith(b)) {
+    const rest = name.slice(brand.length).replace(/^[\s·:|–-]+/, "");
+    return rest || name;
+  }
+  return name;
+}
+
+/** Extrait de fiche affiché entre guillemets : sans mot coupé au début ni à la fin. */
+export function snippet(s: string | null | undefined, max = 160): string {
+  if (!s) return "";
+  let t = s.replace(/\s*\|\s*/g, " · ").replace(/\s+/g, " ").trim();
+  const cutStart = /^[a-zà-ÿ]/.test(t) && !/^(?:fabriqu|made|produit|con[çc]u|formul|lait|sans|avec)/i.test(t);
+  if (cutStart && t.includes(" ")) t = "…" + t.slice(t.indexOf(" ") + 1);
+  if (t.length > max) t = t.slice(0, t.lastIndexOf(" ", max)) + "…";
+  return t;
+}

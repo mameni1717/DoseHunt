@@ -17,10 +17,11 @@ categories:
     dose_label: "€/kg de protéine"
     dose_divisor_g: 1000       # prix par kg de protéine
     serving_g: 30              # mode « par unité » = portion de 30 g
-    include: ['\bwhey\b', 'isolate?\b', 'prot[ée]ine (v[ée]g[ée]tale|vegan|de pois|de riz)', 'vegan protein', 'protéines? végétales?', '\bclear protein\b', 'pea protein']
-    exclude: ['gainer', 'diet shake', 'minceur', '\begg\b', 'oeuf', 'œuf', 'cas[ée]ine', 'casein', 'micellaire', 'micellar', 'beurre', 'pancake', 'cookie', 'farine', "oat'?n'?whey", 'shaker', 'barre', '\bbar\b', 'boisson', 'shake.*bouteille', 'bouteille', '\bml\b', 'sample bundle', 'cr[eè]me de riz', 'porridge', 'peptistrong']
+    include: ['\bwhey\b', 'isolate?\b', 'cas[ée]ine', '\bcasein\b', 'micellaire', 'micellar', 'prot[ée]ine (v[ée]g[ée]tale|vegan|de pois|de riz)', 'vegan protein', 'protéines? végétales?', '\bclear protein\b', 'pea protein']
+    exclude: ['gainer', 'diet shake', 'minceur', '\begg\b', 'oeuf', 'œuf', 'beurre', 'pancake', 'cookie', 'farine', "oat'?n'?whey", 'shaker', 'barre', '\bbar\b', 'boisson', 'shake.*bouteille', 'bouteille', '\bml\b', 'sample bundle', 'cr[eè]me de riz', 'porridge', 'peptistrong']
     product_type_exclude: ['Protéine minceur', 'Farines', 'Hard Gainers', 'Prise de masse', 'Cuisine']
     subcategories:
+      caseine: ['cas[ée]ine', '\bcasein\b', 'micellaire', 'micellar']
       vegane: ['v[ée]g[ée]tal', 'vegan', 'v[ée]gane', '\bpois\b', '\briz\b', '\bpea\b', 'plant', '\bsoja\b', '\bsoy\b', 'chanvre', '\bhemp\b', 'f[èe]ve', 'tournesol', 'courge', 'potiron', 'graines? de', 'amande', 'lentille', 'pois chiche']
       clear: ['\bclear\b']    # whey isolat « limonade » : sous-catégorie à part, avant les isolats
       isolate: ['isolate?', '\biso\b', 'isolat', 'hydro']
@@ -113,19 +114,6 @@ categories:
     include: ['om[ée]ga[ -]?3', '\bepa\b', '\bdha\b', 'krill', 'huile de poisson', 'fish oil', 'epax', 'animal omega']
     exclude: ['om[ée]ga 6', 'om[ée]ga[- ]?3-6-9', 'chia']
 
-  caseine:
-    label: Caséine
-    active: protein
-    active_unit: g
-    basis: per_100g
-    range: [55, 97]            # g de protéine pour 100 g
-    default_mode: dose
-    dose_label: "€/kg de protéine"
-    dose_divisor_g: 1000
-    serving_g: 30
-    include: ['cas[ée]ine', '\bcasein\b', 'micellaire', 'micellar']
-    exclude: ['barre', '\bbar\b', 'cookie', 'pancake', 'gainer', 'shaker', 'bouteille', 'pudding', 'cr[eè]me']
-
   vitamine_c:
     label: Vitamine C
     active: vitamin_c
@@ -152,6 +140,19 @@ categories:
     serving_g: 5
     include: ['glutamine']
     exclude: ['barre', '\bbar\b', 'gainer', 'bcaa', 'complex', 'recovery', 'shaker']
+
+  preworkout:
+    label: Pré-workout
+    active: caffeine
+    active_unit: mg
+    basis: per_100g
+    range: [300, 8000]         # mg de caféine pour 100 g de poudre
+    default_mode: dose
+    dose_label: "€/100 mg de caféine"
+    dose_divisor_mg: 100
+    serving_g: 10
+    include: ['pr[ée][- ]?workout', 'pre[- ]?training', 'pr[ée][- ]?entra[iî]nement', 'booster', '\bpump\b', 'pre[- ]?work']
+    exclude: ['shaker', 'gants?', 'ceinture', 'barre', '\bbar\b', 'serviette', 't-shirt', 'sans caf[ée]ine', 'stim[- ]?free', 'caffeine[- ]free', 'non[- ]stim']
 
 # Produits combinés : quand un produit matche plusieurs catégories, il apparaît dans chacune,
 # avec le badge « produit combiné » et le prix entier attribué à l'actif de la liste.

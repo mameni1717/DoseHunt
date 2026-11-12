@@ -6,6 +6,8 @@ combinés), index calculé, revue humaine, journal des collectes.
 """
 from __future__ import annotations
 
+import re
+
 from sqlalchemy import (JSON, Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, MetaData, String,
                         Table, Text, UniqueConstraint, create_engine)
 from sqlalchemy.engine import Engine
@@ -67,6 +69,12 @@ products = Table(                # ce que contient le produit, tel que vendu par
     Column("content_hint", String(60)),                 # contenance lue sur la page produit (« 120 gélules »)
     Column("origin_country", String(2)),                # pays de fabrication déclaré sur la fiche (ISO : FR, IT…)
     Column("origin_evidence", String(200)),             # extrait qui le prouve
+    Column("image_url", String(500)),                   # photo principale
+    Column("rating", Float),                            # note moyenne des avis sur 5
+    Column("review_count", Integer),
+    Column("ingredients", Text),                        # liste d'ingrédients lue sur la fiche
+    Column("nutrition", JSON),                          # valeurs pour 100 g {protein, fat, sugars, salt…}
+    Column("attributes", JSON),                         # sans lactose, édulcorants, origine du lait… (filtres)
     Column("tags", JSON),
     Column("first_seen", DateTime(timezone=True)),
     Column("last_seen", DateTime(timezone=True)),
@@ -212,6 +220,8 @@ collection_runs = Table(
 
 def get_engine(url: str | None = None) -> Engine:
     u = database_url(url)
+    # Adresse Neon telle que copiée depuis leur console (« postgresql://… ») : pilote psycopg 3
+    u = re.sub(r"^postgres(?:ql)?://", "postgresql+psycopg://", u)
     if u.startswith("sqlite"):
         # plusieurs collectes en parallèle (un processus par site) : attendre le verrou plutôt qu'échouer
         return create_engine(u, future=True, connect_args={"timeout": 120})
@@ -239,7 +249,9 @@ code_votes = Table(              # retours « ce code marche / ne marche plus »
 LATE_COLUMNS = {"promo_codes": {"tiers": "JSON", "origin": "VARCHAR(10)", "evidence": "TEXT"},
                 "sites": {"affiliate_template": "TEXT", "base_url": "VARCHAR(200)"},
                 "products": {"content_hint": "VARCHAR(60)", "origin_country": "VARCHAR(2)",
-                             "origin_evidence": "VARCHAR(200)"}}
+                             "origin_evidence": "VARCHAR(200)", "image_url": "VARCHAR(500)", "rating": "FLOAT",
+                             "review_count": "INTEGER", "ingredients": "TEXT", "nutrition": "JSON",
+                             "attributes": "JSON"}}
 
 
 def init_db(engine: Engine) -> None:

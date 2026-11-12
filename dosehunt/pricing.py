@@ -13,7 +13,7 @@ from typing import Optional
 from .config import categories, codes_config
 from .models import ActiveContent, Format
 
-DEFAULT_SERVING_G = {"whey": 30, "caseine": 30, "collagene": 10, "creatine": 3, "glutamine": 5}
+DEFAULT_SERVING_G = {"whey": 30, "preworkout": 10, "collagene": 10, "creatine": 3, "glutamine": 5}
 
 
 @dataclass
@@ -126,7 +126,8 @@ def compute(category: str, price: float, fmt: Format, ac: ActiveContent, applied
     total_active = None
     if ac.basis == "per_100g" and grams:
         total_active = grams * ac.amount / 100
-        calc.append(f"Contenu : {grams:g} g × {ac.amount:g} % = {total_active:g} {ac.unit} d'actif")
+        share = f"{ac.amount:g} %" if ac.unit == "g" else f"{ac.amount:g} {ac.unit} pour 100 g"
+        calc.append(f"Contenu : {grams:g} g × {share} = {total_active:g} {ac.unit} d'actif")
     elif ac.basis == "per_unit" and units:
         total_active = units * ac.amount
         calc.append(f"Contenu : {units} unités × {ac.amount:g} {ac.unit} = {total_active:g} {ac.unit} d'actif")

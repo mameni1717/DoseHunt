@@ -6,6 +6,17 @@ import { bestCode, type Applied, type PromoCode } from "./codes.ts";
 import { flavourWords, groupKey, norm } from "./group.ts";
 import type { Mode } from "./categories.ts";
 
+export interface Attributes {
+  lactose_free?: boolean;
+  no_sweetener?: boolean;
+  no_sucralose?: boolean;
+  sweeteners?: string[];
+  watched_additives?: string[];
+  ingredient_count?: number | null;
+  milk_origin?: string;
+  grass_fed?: boolean;
+}
+
 export interface IndexRow {
   offer_id: number;
   category: string;
@@ -36,6 +47,10 @@ export interface IndexRow {
   name: string;
   origin_country?: string | null;
   origin_evidence?: string | null;
+  image_url?: string | null;
+  rating?: number | null;
+  review_count?: number | null;
+  attributes?: Attributes | null;
   amount: number | null;
   unit: string | null;
   basis: string | null;

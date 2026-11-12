@@ -63,7 +63,8 @@ def cmd_collect(args):
         sys.exit("Aucun site à collecter : précise --site, --platform ou --all.")
     failed = 0
     for site in targets:
-        st = run_site(engine, site, use_llm=not args.no_llm, limit=args.limit, reextract=args.reextract)
+        st = run_site(engine, site, use_llm=not args.no_llm, limit=args.limit, reextract=args.reextract,
+                      only_top=args.only_top)
         print(f"{site.name:<20} {st.products_seen:>5} produits  {st.products_in_scope:>4} dans nos catégories  "
               f"{st.offers_indexed:>5} offres indexées  {st.sent_to_review:>4} en revue  {st.pages_fetched:>3} pages lues  {st.llm_calls:>3} appels IA")
         failed += st.products_seen == 0
@@ -85,6 +86,18 @@ def cmd_codes(args):
         print(f"{site.name:<20} {desc}  [{st['new']} nouveau(x), {st['confirmed']} confirmé(s)]")
     if not args.no_recompute:
         print(f"{recompute_index(engine)} lignes d'index recalculées.")
+
+
+def cmd_alerts(args):
+    from .alerts import run
+    st = run(_engine(args))
+    print(f"Alertes : {st['checked']} vérifiées, {st['alerts_sent']} e-mail(s) envoyé(s), {st['confirmations']} confirmation(s) envoyée(s).")
+
+
+def cmd_sites_json(args):
+    import json
+    print(json.dumps([k for k, v in sites().items() if v.status == "active"
+                      or (v.status == "needs_feed" and os.environ.get((v.filters or {}).get("feed_env", "")))]))
 
 
 def cmd_demo(args):
@@ -193,12 +206,16 @@ def main(argv=None):
     c.add_argument("--limit", type=int, help="nombre maximal de produits (essais)")
     c.add_argument("--reextract", action="store_true", help="relire toutes les teneurs (après une amélioration des règles)")
     c.add_argument("--force", action="store_true", help="collecter même un site marqué blocked ou paused")
+    c.add_argument("--only-top", type=int, metavar="N",
+                   help="ne relire que les fiches du top N de chaque catégorie et sous-catégorie (Shopify : tout, c'est une requête)")
     c.set_defaults(func=cmd_collect)
     k = sub.add_parser("codes", help="relève les codes promo affichés par les sites")
     k.add_argument("--site", action="append")
     k.add_argument("--no-recompute", action="store_true")
     k.set_defaults(func=cmd_codes)
     sub.add_parser("recompute").set_defaults(func=cmd_recompute)
+    sub.add_parser("alerts", help="envoie les alertes prix (e-mails) après une collecte").set_defaults(func=cmd_alerts)
+    sub.add_parser("sites-json", help="liste JSON des sites à collecter (matrice GitHub Actions)").set_defaults(func=cmd_sites_json)
     sub.add_parser("push-neon", help="copie la base locale vers Neon par HTTPS (remplacement complet)").set_defaults(func=cmd_push_neon)
     sub.add_parser("demo", help="charge le jeu de démonstration (relevé du prototype, 11/11/2026)").set_defaults(func=cmd_demo)
     e = sub.add_parser("export")

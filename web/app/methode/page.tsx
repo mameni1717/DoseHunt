@@ -17,11 +17,18 @@ export default function Methode() {
       <h2>Le critère de classement</h2>
       <p>Un seul critère : le prix comparé, du moins cher au plus cher. Trois façons de comparer, au choix :</p>
       <ul>
-        <li><b>Par dose d'actif</b> : € par kg de protéine, par g de zinc ou de magnésium élément, par 100 000 UI de vitamine D, par g de vitamine C, par g d'EPA + DHA, par kg de créatine, de collagène ou de glutamine.</li>
-        <li><b>Par kg de produit</b> : le prix au poids, comme en magasin.</li>
-        <li><b>Par unité</b> : € par barre, gélule, comprimé ou portion.</li>
+        <li><b>Par dose d'actif</b> : € par kg de protéine, de créatine, de collagène ou de glutamine, par 100 mg de caféine (pré-workout), par g de zinc ou de magnésium élément, par 100 000 UI de vitamine D, par g de vitamine C, par g d'EPA + DHA.</li>
+        <li><b>Par kg de produit</b> : le prix au poids, comme en magasin (poudres).</li>
+        <li><b>Par unité</b> : € par barre, gélule ou comprimé.</li>
       </ul>
-      <p>Mode par défaut : {CATEGORIES.map((c) => `${c.label.toLowerCase()} (${c.modes[c.defaultMode].label.toLowerCase()})`).join(", ")}.</p>
+      <p>Mode par défaut : {CATEGORIES.map((c) => `${c.label.toLowerCase()} (${c.modes[c.defaultMode]!.label.toLowerCase()})`).join(", ")}.</p>
+
+      <h2>Un produit, une ligne</h2>
+      <p>
+        Chez un même marchand, les arômes et formats d'un même produit sont regroupés : seul le moins cher pour le mode
+        choisi est affiché (« à partir de »). « Tous les formats et arômes », dans « + de filtres », les montre tous.
+        Les produits en rupture de stock sont masqués par défaut.
+      </p>
 
       <h2>Le calcul</h2>
       <p><code>Prix final = prix affiché − remise du meilleur code applicable</code></p>
@@ -42,6 +49,11 @@ export default function Methode() {
         Un produit qui apporte plusieurs actifs (whey + collagène, zinc + magnésium) apparaît dans chaque liste concernée,
         avec son prix entier attribué à l'actif de la liste et le badge « produit combiné ».
       </p>
+      <p>
+        « Fabriqué en France », « sans lactose », « sans édulcorant » ou l'origine du lait ne sont affichés que si la fiche du
+        marchand le dit en toutes lettres, ou si sa liste d'ingrédients le montre. « Conçu en France » ou « marque française »
+        ne suffisent pas. Une fiche muette est exclue du filtre correspondant.
+      </p>
 
       <h2>Les codes promo</h2>
       <p>
@@ -54,9 +66,10 @@ export default function Methode() {
 
       <h2>D'où viennent les données</h2>
       <p>
-        Les prix et teneurs sont relevés automatiquement sur 25 sites marchands français, plusieurs fois par jour pour les
-        prix et les codes affichés. La date du dernier relevé figure sur chaque offre. Nous ne relevons que des données
-        factuelles (prix, formats, teneurs), ni photos ni textes descriptifs.
+        Les prix et teneurs sont relevés automatiquement sur les sites marchands : toutes les 4 heures pour les 50 meilleurs
+        produits de chaque catégorie, toutes les 8 heures pour tous les autres et pour les codes promo affichés par les sites.
+        La date du dernier relevé figure sous chaque offre. Nous relevons des données factuelles (prix, formats, teneurs,
+        ingrédients, valeurs nutritionnelles, note moyenne des avis) ; la photo est affichée depuis le site du marchand.
       </p>
 
       <h2>Neutralité et rémunération</h2>
@@ -77,7 +90,7 @@ export default function Methode() {
       </p>
 
       <h2>Une erreur ?</h2>
-      <p>Un prix, une teneur ou un code faux : signale-le avec les boutons sous chaque offre, ou écris-nous. Nous corrigeons vite, car un seul chiffre faux suffit à perdre ta confiance.</p>
+      <p>Un prix, une teneur ou un code faux : écris-nous à contact@dosehunt.fr, ou indique sous l'offre si un code ne marche plus. Nous corrigeons vite, car un seul chiffre faux suffit à perdre ta confiance.</p>
     </article>
   );
 }

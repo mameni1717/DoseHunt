@@ -1,19 +1,21 @@
 import Link from "next/link";
-import { CATEGORIES } from "@/lib/categories";
+import { MAIN_CATEGORIES, VITAMIN_CATEGORIES, VITAMINS_GROUP } from "@/lib/categories";
 import { getHome, lastUpdate } from "@/lib/data";
-import { ago, displayName, num } from "@/lib/format";
+import { ago } from "@/lib/format";
+import { CategoryTile } from "@/components/CategoryTiles";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const [home, updated] = await Promise.all([getHome(), lastUpdate()]);
+  const vitCount = VITAMIN_CATEGORIES.reduce((n, c) => n + (home[c.id]?.count ?? 0), 0);
   return (
     <>
       <section className="hero">
         <h1>Le vrai prix <em>au gramme utile</em>, code promo compris.</h1>
         <p>
-          Choisis un produit : DoseHunt classe les offres de {CATEGORIES.length} catégories selon leur prix final par
-          gramme de protéine, de zinc réel ou d'EPA + DHA, avec le meilleur code valable en France. Mis à jour {ago(updated)}.
+          DoseHunt classe les compléments selon leur prix final par gramme de protéine, de créatine, de zinc réel ou
+          d'EPA + DHA, avec le meilleur code valable en France. Prix mis à jour {ago(updated)}.
         </p>
         <form className="search" action="/recherche" role="search">
           <label htmlFor="q" className="ctl-label" style={{ alignSelf: "center" }}>Chercher</label>
@@ -22,24 +24,12 @@ export default async function Home() {
         </form>
       </section>
       <section className="grid" aria-label="Catégories">
-        {CATEGORIES.map((c) => {
-          const h = home[c.id];
-          const best = h?.best;
-          return (
-            <Link key={c.id} href={`/c/${c.id}`} className={`catcard${best ? "" : " empty"}`}>
-              <h2>{c.label}</h2>
-              {best ? (
-                <>
-                  <div className="unit">{num(best.value ?? 0, 2)}<small>{c.modes.dose.unit}</small></div>
-                  <div className="meta">Meilleure offre : {displayName(best.brand, best.name, " ")} ({best.site_name})</div>
-                  <div className="meta">{h.count} produit{h.count > 1 ? "s" : ""} comparé{h.count > 1 ? "s" : ""}</div>
-                </>
-              ) : (
-                <div className="meta">Pas encore d'offre relevée</div>
-              )}
-            </Link>
-          );
-        })}
+        {MAIN_CATEGORIES.map((c) => <CategoryTile key={c.id} c={c} h={home[c.id]} />)}
+        <Link href="/vitamines" className="catcard group">
+          <h2>{VITAMINS_GROUP.label}</h2>
+          <div className="meta">{VITAMIN_CATEGORIES.map((c) => c.short).join(", ")}</div>
+          <div className="meta">{vitCount} produits comparés</div>
+        </Link>
       </section>
       <section className="notes">
         <div className="note trapnote">
@@ -51,6 +41,11 @@ export default async function Home() {
           <h3>Un classement qui ne s'achète pas</h3>
           L'ordre dépend uniquement du prix final par unité active. Le meilleur code est appliqué même s'il ne rapporte rien
           à DoseHunt. <Link href="/methode">Notre méthode</Link>.
+        </div>
+        <div className="note">
+          <h3>Comparer, être prévenu</h3>
+          Coche « Comparer » sur plusieurs produits pour les voir côte à côte, ou crée une <Link href="/alertes">alerte prix</Link> :
+          un e-mail dès qu'un produit passe sous ton prix.
         </div>
       </section>
     </>

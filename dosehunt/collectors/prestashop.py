@@ -246,6 +246,7 @@ class PrestaShopCollector(Collector):
         body = product_zone_html(page) or (node.get("description") or "")
         from .page import with_nutrition_tables         # import tardif (page importe base comme nous)
         from ..origin import origin_text_from_page
+        from ..details import page_extras
         body = with_nutrition_tables(body, page)
         hint = format_hint(page)
         if hint:
@@ -258,6 +259,7 @@ class PrestaShopCollector(Collector):
             product_type=meta.get("category") or node.get("category"), body_html=body,
             variants=variants, option_names=[_group_label(page, g) for g in groups], source="prestashop",
             origin_text=origin_text_from_page(page),
+            **page_extras(page),
         )
 
     refresh_blocked = False
@@ -309,8 +311,8 @@ class PrestaShopCollector(Collector):
         return out
 
     def iter_products(self) -> Iterator[RawProduct]:
-        catalogue = self.discover()
-        scoped = {u: m for u, m in catalogue.items() if self._in_scope(m)}
+        catalogue = {u: {} for u in self.only_urls} if self.only_urls is not None else self.discover()
+        scoped = catalogue if self.only_urls is not None else {u: m for u, m in catalogue.items() if self._in_scope(m)}
         log.info("%s : %d fiches trouvées, %d dans nos catégories", self.site.id, len(catalogue), len(scoped))
         self.catalogue_size = len(catalogue)
         refused = 0
