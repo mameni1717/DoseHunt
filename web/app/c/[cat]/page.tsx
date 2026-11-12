@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { OfferCard } from "@/components/OfferCard";
 import { AutoSubmit } from "@/components/client";
 import { CATEGORY_BY_ID, MILK_ORIGINS, VITAMINS_GROUP, modeDef, modeOf, type Mode } from "@/lib/categories";
@@ -21,6 +21,7 @@ export async function generateMetadata({ params }: { params: Promise<{ cat: stri
 export default async function CategoryPage({ params, searchParams }: { params: Promise<{ cat: string }>; searchParams: Promise<SP> }) {
   const { cat } = await params;
   const sp = await searchParams;
+  if (cat === "caseine") redirect("/c/whey?sub=caseine");          // ancienne catégorie, désormais un type de whey
   const c = CATEGORY_BY_ID[cat];
   if (!c) notFound();
   const country = currentCountry();
