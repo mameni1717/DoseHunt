@@ -234,3 +234,12 @@ def test_thousands_with_space_in_table():
 def test_protein_per_dose_text():
     body = "<p>Dose : 30g</p><p>Chaque shaker apporte 24 g de protéines.</p>"
     assert extract("whey", body, "Whey X", parse_format("1kg")).amount == 80
+
+
+def test_par_dose_header_uses_dose_size_found_elsewhere():
+    from dosehunt.collectors.page import with_nutrition_tables
+    page = ("<div>Taille de la dose : 1 doseur de 25ml (10g)</div>"
+            "<table><tr><th>Quantité de nutriments</th><th>Par dose</th><th>Par dose journalière</th></tr>"
+            "<tr><td>Collagène bovin hydrolysé</td><td>10000 mg</td><td>10000 mg</td></tr></table>")
+    body = with_nutrition_tables(page, page)
+    assert extract("collagene", body, "Collagène hydrolysé (bovin) en poudre", parse_format("1Kg")).amount == 100

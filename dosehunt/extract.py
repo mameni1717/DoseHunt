@@ -154,6 +154,9 @@ def table_serving_to_100g(text: str, row_rx: str) -> Optional[tuple[float, str]]
         if head:
             serving = _f(head.group(1))
             continue
+        if re.search(r"\|\s*(?:par|pour)\s+(?:une\s+)?(?:dose|portion)\s*(?:\||$)", line, re.I) and (size := serving_size(text)):
+            serving = size                           # « Par dose » sans poids : « Taille de la dose : … (10g) »
+            continue
         if serving and re.match(row_rx, cells[0].lower()) and not re.search(r"mati[eè]re s[eè]che", cells[0].lower()):
             for cell in cells[1:]:
                 m = re.match(r"\s*" + N + r"\s*(m?g)\b", cell)
@@ -409,7 +412,8 @@ _THOUSANDS = re.compile(r"(?<=\d)[ \u00a0\u202f](?=\d{3}(?!\d)\s*(?:mg|g|µg|μg
 def serving_size(text: str) -> Optional[float]:
     """Poids d'une portion déclaré en texte : « Une portion : 4.1 g », « 1 dose = 30 g », « Dose : 30g »."""
     m = re.search(r"(?:une|1)?\s*(?:portion|dose|mesure|scoop|shaker)s?\s*(?:journali[eè]re|recommand[ée]e)?\s*[:=(]\s*" + N + r"\s*g\b",
-                  text, re.I)
+                  text, re.I) \
+        or re.search(r"(?:taille de la |une |1 )(?:dose|portion)[^\n]{0,40}?\(\s*" + N + r"\s*g\s*\)", text, re.I)
     if m and 1 <= _f(m.group(1)) <= 150:
         return _f(m.group(1))
     return None

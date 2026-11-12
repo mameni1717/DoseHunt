@@ -464,8 +464,27 @@ def json_nutrition_tables(page: str, limit: int = 3) -> str:
     return "\n".join(out)
 
 
+_SERVING_FACT = re.compile(r"(?:taille (?:de la|d['’]une) (?:dose|portion)|une portion|1 portion|dose journali[eè]re|portion journali[eè]re)\s*:?\s*[^<\n]{1,60}", re.I)
+
+
+def serving_facts(page: str) -> str:
+    """« Taille de la dose : 1 doseur de 25ml (10g) » : souvent hors de la zone produit, indispensable au calcul."""
+    text = re.sub(r"<[^>]+>", "\n", re.sub(r"(?is)<(script|style)[^>]*>.*?</\1>", " ", page))
+    found = []
+    for m in _SERVING_FACT.finditer(text):
+        fact = re.sub(r"\s+", " ", htmllib.unescape(m.group(0))).strip()
+        if re.search(r"\d", fact) and fact not in found:
+            found.append(fact)
+        if len(found) >= 2:
+            break
+    return "".join(f"<p>{htmllib.escape(f)}</p>" for f in found)
+
+
 def with_nutrition_tables(body: str, page: str) -> str:
     """Ajoute à la zone produit le tableau nutritionnel de la page s'il lui manque (onglet, <template>, JS)."""
+    facts = serving_facts(page)
+    if facts and facts not in body:
+        body += "\n" + facts
     if not _HAS_TABLE.search(body) or not _HAS_HEADER.search(body):
         # pas de tableau, ou un tableau dont l'en-tête (« 100 g | 1 dose ») a été perdu avec la zone
         body += "\n" + page_nutrition_tables(datalabel_headers(divtables_to_tables(page)))
