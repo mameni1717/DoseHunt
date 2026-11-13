@@ -33,9 +33,21 @@ def _jsonld_nodes(page: str) -> list[dict]:
     return out
 
 
-def page_extras(page: str) -> dict:
-    """Photo principale et note moyenne des avis (JSON-LD Product / AggregateRating, sinon og:image)."""
+def page_extras(page: str, base_url: str = "") -> dict:
+    """Photo principale et note moyenne des avis.
+
+    Photo : og:image d'abord (celle que le site choisit pour le partage, presque toujours la photo du produit),
+    puis l'image du JSON-LD Product. Les adresses relatives sont complétées avec l'adresse de la page.
+    """
+    from urllib.parse import urljoin
     image = rating = count = None
+    og = None
+    for m in re.finditer(r'<meta[^>]+(?:property|name)="(?:og:image(?::secure_url)?|twitter:image)"[^>]+content="([^"]+)"|'
+                         r'<meta[^>]+content="([^"]+)"[^>]+(?:property|name)="(?:og:image|twitter:image)"', page or "", re.I):
+        cand = html.unescape(m.group(1) or m.group(2) or "")
+        if cand and not re.search(r"logo|favicon|placeholder|default[-_]?image", cand, re.I):
+            og = cand
+            break
     for n in _jsonld_nodes(page):
         t = str(n.get("@type", ""))
         if "Product" in t and image is None:
@@ -56,11 +68,15 @@ def page_extras(page: str) -> dict:
                     rating, count = round(r * 5 / best, 2), c
             except (TypeError, ValueError):
                 pass
-    if image is None:
-        m = re.search(r'<meta[^>]+property="og:image(?::secure_url)?"[^>]+content="([^"]+)"', page or "", re.I)
-        image = html.unescape(m.group(1)) if m else None
+    image = og or image
     if image and image.startswith("//"):
         image = "https:" + image
+    if image and image.startswith("http://"):
+        image = "https://" + image[7:]                   # page en https : une image http serait bloquée
+    if image and not image.startswith("http") and base_url:
+        image = urljoin(base_url, image)
+    if image and not image.startswith("http"):
+        image = None
     return {"image_url": image, "rating": rating, "review_count": count}
 
 

@@ -58,7 +58,8 @@ def parse_product(site, p: dict) -> RawProduct:
         option_names=option_names,
         updated_at=p.get("updated_at"),
         source="shopify_json",
-        image_url=((p.get("images") or [{}])[0] or {}).get("src") or (p.get("image") or {}).get("src"),
+        image_url=((p.get("images") or [{}])[0] or {}).get("src") or (p.get("image") or {}).get("src")
+                  or next((v["featured_image"]["src"] for v in p.get("variants") or [] if (v.get("featured_image") or {}).get("src")), None),
     )
 
 

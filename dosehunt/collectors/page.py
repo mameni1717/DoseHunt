@@ -558,9 +558,9 @@ HOOKS = {"prozis": prozis_nutrition}
 
 # --------------------------------------------------------------------------- collecteur
 
-def _extras(page: str) -> dict:
+def _extras(page: str, url: str = "") -> dict:
     from ..details import page_extras             # import tardif, comme pour l'origine
-    return page_extras(page)
+    return page_extras(page, url)
 
 
 def _origin_text(page: str) -> str:
@@ -702,7 +702,7 @@ class PageCollector(Collector):
             body_html=body, variants=variants,
             option_names=sorted({k for v in variants for k in v.options}), source="page",
             origin_text=_origin_text(page),
-            **_extras(page),
+            **_extras(page, url),
         )
 
     def iter_products(self) -> Iterator[RawProduct]:
@@ -743,6 +743,9 @@ class ShopifyHeadlessCollector(PageCollector):
         product = product_from_jsonld(self.site, url, extract_jsonld(page))
         if product:
             product.body_html = (product.body_html or "") + "\n" + zone_html(page)   # tableau nutritionnel de la page
+            ex = _extras(page, url)
+            product.image_url = product.image_url or ex["image_url"]
+            product.rating, product.review_count = ex["rating"], ex["review_count"]
         return product
 
 
