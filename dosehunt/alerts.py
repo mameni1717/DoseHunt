@@ -29,7 +29,7 @@ UNIT = {"price": "€"}
 
 
 def site_url() -> str:
-    return os.environ.get("SITE_URL", "https://dose-hunt.vercel.app").rstrip("/")
+    return os.environ.get("SITE_URL", "https://dosehunt.com").rstrip("/")
 
 
 def send(to: str, subject: str, body_html: str) -> bool:
