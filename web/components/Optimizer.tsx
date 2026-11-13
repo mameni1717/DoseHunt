@@ -37,7 +37,7 @@ function qtyText(kind: QtyKind, n: number): string {
 
 export function Optimizer({ cats, shippingEstimate }: { cats: CatChoice[]; shippingEstimate: number }) {
   const byId = Object.fromEntries(cats.map((c) => [c.id, c]));
-  const [items, setItems] = useState<Item[]>([{ cat: "whey", sub: "", qty: byId.whey?.defaultQty ?? 1000, pin: null, pinLabel: null }]);
+  const [items, setItems] = useState<Item[]>([{ cat: "whey", sub: "classique", qty: byId.whey?.defaultQty ?? 1000, pin: null, pinLabel: null }]);
   const [firstOrder, setFirstOrder] = useState(false);
   const [useCodes, setUseCodes] = useState(true);
   const [loaded, setLoaded] = useState(false);
@@ -60,7 +60,7 @@ export function Optimizer({ cats, shippingEstimate }: { cats: CatChoice[]; shipp
   const update = (i: number, patch: Partial<Item>) => { setItems((xs) => xs.map((x, k) => (k === i ? { ...x, ...patch } : x))); setResult(null); };
   const add = () => {
     const free = cats.find((c) => !items.some((i) => i.cat === c.id)) ?? cats[0];
-    setItems((xs) => [...xs, { cat: free.id, sub: "", qty: free.defaultQty, pin: null, pinLabel: null }]);
+    setItems((xs) => [...xs, { cat: free.id, sub: free.id === "whey" ? "classique" : "", qty: free.defaultQty, pin: null, pinLabel: null }]);
     setResult(null);
   };
   const remove = (i: number) => { setItems((xs) => xs.filter((_, k) => k !== i)); setResult(null); };
@@ -98,7 +98,7 @@ export function Optimizer({ cats, shippingEstimate }: { cats: CatChoice[]; shipp
             <div key={i} className="opt-item">
               <div className="row">
                 <select className="filter" aria-label="Catégorie" value={it.cat}
-                  onChange={(e) => update(i, { cat: e.target.value, sub: "", qty: byId[e.target.value].defaultQty, pin: null, pinLabel: null })}>
+                  onChange={(e) => update(i, { cat: e.target.value, sub: e.target.value === "whey" ? "classique" : "", qty: byId[e.target.value].defaultQty, pin: null, pinLabel: null })}>
                   {cats.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
                 </select>
                 {Object.keys(c.subs).length > 0 && !it.pin && (
