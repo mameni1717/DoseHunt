@@ -69,6 +69,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   const bestByOffer = new Map(ranked.map((r) => [r.offer_id, r]));
   const mainOffer = ranked[0]?.offer_id ?? offers[0]?.id;
   const bestBuy = ranked.find((r) => r.available);
+  const fallbackBuy = offers.filter((o) => o.available).sort((a, b) => a.price - b.price)[0];
   const points = history.filter((h) => h.offer_id === mainOffer).map((h) => ({ t: new Date(h.observed_at), v: h.final_price ?? h.price }))
     .sort((a, b) => a.t.getTime() - b.t.getTime());
   // Un relevé n'est enregistré que quand le prix change : le dernier prix vaut jusqu'à aujourd'hui.
@@ -104,13 +105,17 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               <span aria-hidden="true">{country.flag}</span> {country.madeIn}</span>
               {product.origin_evidence && <span className="note-small"> d'après la fiche : « {snippet(product.origin_evidence)} »</span>}</p>
           )}
-          {bestBuy && (
+          {bestBuy ? (
             <div className="buy">
               <GoButton big offerId={bestBuy.offer_id} code={bestBuy.applied?.code.code}
                 label={`Voir sur ${product.site_name} · ${eur(bestBuy.final)}`} />
               {bestBuy.applied?.code.code && <span className="note-small">Code {bestBuy.applied.code.code} copié au clic</span>}
             </div>
-          )}
+          ) : fallbackBuy ? (
+            <div className="buy">
+              <GoButton big offerId={fallbackBuy.id} label={`Voir sur ${product.site_name} · ${eur(fallbackBuy.price)}`} />
+            </div>
+          ) : null}
           <p>Vendu par {product.site_name} · relevé {ago(product.last_seen)} · <a href={product.url} rel="nofollow noopener" target="_blank">fiche du marchand</a></p>
         </div>
       </section>

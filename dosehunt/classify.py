@@ -62,7 +62,7 @@ def passes_site_filters(p: RawProduct, site: Site) -> tuple[bool, str]:
 MIXED_PACK = re.compile(r"\b(pack|coffret|bundle|assortiment|box|kit|routine|programme|cure compl[eè]te|trio)\b", re.I)
 
 
-# Actifs typiques d'un pré-workout : un produit du rayon sans nom explicite doit en citer au moins deux.
+# Actifs typiques d'un pré-workout : un produit du rayon sans nom explicite doit en citer au moins un.
 PRE_ACTIVES_RX = [re.compile(x, re.I) for x in (
     r"caf[ée]ine", r"citrulline", r"b[êe]ta[- ]?alanine", r"arginine", r"b[ée]ta[iï]ne", r"taurine",
     r"tyrosine", r"nitrate", r"agmatine", r"glyc[ée]rol", r"ornithine", r"guarana")]
@@ -75,7 +75,7 @@ def looks_preworkout(p: RawProduct) -> bool:
         from .collectors.page import zone_html
         body = zone_html(p.page_html)
     text = p.title + " " + body
-    return sum(1 for r in PRE_ACTIVES_RX if r.search(text)) >= 2
+    return any(r.search(text) for r in PRE_ACTIVES_RX)   # « Knockout » : caféine seule, mais bien un booster
 
 
 def classify(p: RawProduct, site: Optional[Site] = None) -> list[Classification]:
