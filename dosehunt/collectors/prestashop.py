@@ -191,7 +191,9 @@ class PrestaShopCollector(Collector):
                                        "description_short": p.get("description_short") or "",
                                        "category": p.get("category_name") or "", "brand": p.get("manufacturer_name"),
                                        "price": to_price(p.get("price_amount")),
-                                       "regular": to_price(p.get("regular_price_amount"))}
+                                       "regular": to_price(p.get("regular_price_amount")),
+                                       "image": ((p.get("cover") or {}).get("large") or {}).get("url")
+                                                or ((p.get("cover") or {}).get("bySize") or {}).get("home_default", {}).get("url")}
                 pag = data.get("pagination") or {}
                 if page >= int(pag.get("pages_count") or 1):
                     break
@@ -259,7 +261,7 @@ class PrestaShopCollector(Collector):
             product_type=meta.get("category") or node.get("category"), body_html=body,
             variants=variants, option_names=[_group_label(page, g) for g in groups], source="prestashop",
             origin_text=origin_text_from_page(page),
-            **page_extras(page),
+            **page_extras(page, url),
         )
 
     refresh_blocked = False
@@ -353,4 +355,5 @@ class PrestaShopCollector(Collector):
                              options={"Format": fmt} if fmt else {}, url=url)
         return RawProduct(site_id=self.site.id, external_id=str(meta["id"]), handle=url.rstrip("/").rsplit("/", 1)[-1],
                           title=meta["name"], url=url, vendor=meta.get("brand"), product_type=meta.get("category"),
+                          image_url=meta.get("image"),
                           body_html=meta.get("description_short") or "", variants=[variant], source="prestashop_listing")

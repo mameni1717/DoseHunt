@@ -173,9 +173,11 @@ export interface CompareItem {
 }
 
 /** Produits choisis pour le comparateur : leur meilleure offre (mode par défaut de la catégorie) et leur composition. */
-export async function getCompare(ids: number[]): Promise<CompareItem[]> {
+export async function getCompare(ids: number[], cat?: string): Promise<CompareItem[]> {
   if (!ids.length) return [];
-  const rows = await q<IndexRow>(ROW_SELECT + ` and p.id = any($2::int[])`, [COUNTRY, ids]);
+  const rows = cat
+    ? await q<IndexRow>(ROW_SELECT + ` and p.id = any($2::int[]) and i.category = $3`, [COUNTRY, ids, cat])
+    : await q<IndexRow>(ROW_SELECT + ` and p.id = any($2::int[])`, [COUNTRY, ids]);
   const codes = await getCodes();
   const details = await q<{ id: number; ingredients: string | null; nutrition: Nutrition | null }>(
     `select id, ingredients, nutrition from products where id = any($1::int[])`, [ids]);

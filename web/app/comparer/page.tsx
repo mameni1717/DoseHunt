@@ -6,7 +6,7 @@ import { displayName, eur, num } from "@/lib/format";
 import { formatLabel, type Ranked } from "@/lib/rank";
 import { NUTRI_LABELS } from "@/components/ProductFacts";
 import { AutoSubmit, GoButton } from "@/components/client";
-import { brandKey } from "@/lib/group";
+import { brandKey, norm } from "@/lib/group";
 import { currentCountry } from "@/lib/country";
 
 export const dynamic = "force-dynamic";
@@ -20,12 +20,25 @@ const value = (r: Ranked, m: Mode) => (m === "dose" ? r.doseNow : m === "kg" ? r
 export default async function Compare({ searchParams }: { searchParams: Promise<SP> }) {
   const sp = await searchParams;
   const ids = list(sp.ids).map(Number).filter(Number.isFinite).slice(0, 8);
-  const items = await getCompare(ids);
-  const cat = (typeof sp.cat === "string" && CATEGORY_BY_ID[sp.cat]) ? sp.cat : items[0]?.row.category ?? "whey";
+  const asked = typeof sp.cat === "string" && CATEGORY_BY_ID[sp.cat] ? sp.cat : undefined;
+  const first = asked ? [] : await getCompare(ids.slice(0, 1));
+  const cat = asked ?? first[0]?.row.category ?? "whey";
+  const items = await getCompare(ids, cat);                 // seulement des produits de la catégorie choisie
   const c = CATEGORY_BY_ID[cat];
   const brands = list(sp.brand);
-  const { rows, facets } = await getRanking(cat, {}, { mode: c.defaultMode, allFormats: false, firstOrder: false, useCodes: true });
-  const candidates = rows.filter((r) => r.available && (!brands.length || brands.includes(brandKey(r.brand)))).slice(0, 80);
+  const ranking = await getRanking(cat, {}, { mode: c.defaultMode, allFormats: true, firstOrder: false, useCodes: true });
+  const facets = ranking.facets;
+  const seenIds = new Set<number>();                 // une ligne par produit (son offre la moins chère), arômes compris
+  const rows = ranking.rows.filter((r) => (seenIds.has(r.product_id) ? false : (seenIds.add(r.product_id), true)));
+  // Recherche manuelle : tous les produits de la catégorie, ruptures comprises ; sans recherche, les 80 moins chers en stock.
+  const q = typeof sp.q === "string" ? sp.q.trim() : "";
+  const words = norm(q).split(/[^a-z0-9%]+/).filter((w) => w.length >= 2);
+  const inBrands = (r: Ranked) => !brands.length || brands.includes(brandKey(r.brand));
+  const found = words.length
+    ? rows.filter((r) => inBrands(r) && words.every((w) => norm(`${r.brand ?? ""} ${r.name} ${r.site_name}`).includes(w))).slice(0, 80)
+    : rows.filter((r) => r.available && inBrands(r)).slice(0, 80);
+  const selected = rows.filter((r) => ids.includes(r.product_id) && !found.some((f) => f.product_id === r.product_id));
+  const candidates = [...selected, ...found];
   const country = currentCountry();
   const modes = Object.keys(c.modes) as Mode[];
   const bestOf = (f: (r: Ranked) => number | null, lowIsBest = true) => {
@@ -62,18 +75,25 @@ export default async function Compare({ searchParams }: { searchParams: Promise<
       <form className="controls" action="/comparer">
         <input type="hidden" name="cat" value={cat} />
         {brands.map((b) => <input key={b} type="hidden" name="brand" value={b} />)}
-        <details className="more" open={ids.length < 2}>
-          <summary>Produits ({candidates.length} en stock, du moins cher au plus cher)</summary>
-          <div className="pick">
-            {candidates.map((r) => (
-              <label key={r.product_id} className="check">
-                <input type="checkbox" name="ids" value={r.product_id} defaultChecked={ids.includes(r.product_id)} />
-                {displayName(r.brand, r.name, " ")} <small>· {r.site_name} · {num(r.value ?? 0, 2)} {modeDef(cat, c.defaultMode).unit}</small>
-              </label>
-            ))}
-          </div>
-          <div className="row"><button className="btn blaze" type="submit">Comparer la sélection</button></div>
-        </details>
+        <div className="row">
+          <label className="ctl-label" htmlFor="q">Chercher</label>
+          <input id="q" className="filter grow" name="q" defaultValue={q} placeholder={`Nom, marque ou marchand (ruptures comprises)`} />
+          <button className="btn ghost" type="submit">Chercher</button>
+          {q && <Link className="btn ghost small" href={`/comparer?cat=${cat}${brands.map((b) => `&brand=${b}`).join("")}${ids.length ? `&ids=${ids.join(",")}` : ""}`}>Effacer</Link>}
+        </div>
+        <div className="pick">
+          <p className="note-small">{q ? `${found.length} résultat${found.length > 1 ? "s" : ""} pour « ${q} », en stock ou en rupture.`
+            : `Les ${found.length} produits en stock les moins chers. Cherche un nom pour voir aussi les ruptures.`}
+            {ids.length ? ` Déjà choisis : ${ids.length}.` : ""}</p>
+          {candidates.map((r) => (
+            <label key={r.product_id} className="check">
+              <input type="checkbox" name="ids" value={r.product_id} defaultChecked={ids.includes(r.product_id)} />
+              {displayName(r.brand, r.name, " ")} <small>· {r.site_name} · {num(r.value ?? 0, 2)} {modeDef(cat, c.defaultMode).unit}{r.available ? "" : " · rupture de stock"}</small>
+            </label>
+          ))}
+          {candidates.length === 0 && <p className="note-small">Aucun produit ne correspond.</p>}
+        </div>
+        <div className="row"><button className="btn blaze" type="submit" formAction="/comparer">Comparer la sélection</button></div>
       </form>
 
       {items.length >= 2 ? (

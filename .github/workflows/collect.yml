@@ -59,6 +59,7 @@ jobs:
     needs: plan
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    continue-on-error: true          # un site qui refuse le robot (Nutripure) ne fait pas échouer toute la mise à jour
     strategy:
       fail-fast: false
       max-parallel: 10

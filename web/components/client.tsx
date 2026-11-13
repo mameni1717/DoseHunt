@@ -182,5 +182,6 @@ export function AlertForm({ product, cat, sub, units, defaults }: {
 export function ProductImage({ src, letter, size = 72 }: { src?: string | null; letter: string; size?: number }) {
   const [broken, setBroken] = useState(!src);
   if (broken) return <span className="nopic" aria-hidden="true">{letter}</span>;
-  return <img src={src!} alt="" loading="lazy" width={size} height={size} referrerPolicy="no-referrer" onError={() => setBroken(true)} />;
+  const url = src!.startsWith("http://") ? "https://" + src!.slice(7) : src!;
+  return <img src={url} alt="" loading="lazy" width={size} height={size} referrerPolicy="no-referrer" onError={() => setBroken(true)} />;
 }
