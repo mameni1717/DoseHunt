@@ -26,8 +26,12 @@ from . import db
 from .config import get_site, sites
 
 
+_ENGINES: list = []
+
+
 def _engine(args):
     engine = db.get_engine(args.db)
+    _ENGINES.append(engine)
     db.init_db(engine)
     return engine
 
@@ -292,7 +296,13 @@ def main(argv=None):
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING,
                         format="%(asctime)s %(levelname)s %(name)s : %(message)s")
-    args.func(args)
+    try:
+        args.func(args)
+    finally:
+        # Aucune connexion laissée ouverte entre deux collectes : Neon peut se mettre en veille aussitôt.
+        for engine in _ENGINES:
+            engine.dispose()
+        _ENGINES.clear()
 
 
 if __name__ == "__main__":

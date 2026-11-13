@@ -227,7 +227,13 @@ def get_engine(url: str | None = None) -> Engine:
     if u.startswith("sqlite"):
         # plusieurs collectes en parallèle (un processus par site) : attendre le verrou plutôt qu'échouer
         return create_engine(u, future=True, connect_args={"timeout": 120})
-    return create_engine(u, future=True)
+    # Postgres (Neon) : petit pool, connexions vérifiées avant usage (Neon a pu se mettre en veille) et recyclées,
+    # pour que la base puisse s'éteindre dès la fin d'une collecte (scale to zero). cli.py ferme le pool en sortie.
+    return create_engine(
+        u, future=True, pool_size=2, max_overflow=2, pool_pre_ping=True, pool_recycle=300,
+        connect_args={"connect_timeout": 15, "keepalives": 1, "keepalives_idle": 30,
+                      "keepalives_interval": 10, "keepalives_count": 5},
+    )
 
 
 click_log = Table(               # clics vers les marchands (mesure de l'affiliation, sans donnée personnelle)
