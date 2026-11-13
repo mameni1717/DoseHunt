@@ -10,10 +10,12 @@ Branche : `multi-pays`. Ce fichier sert à reprendre le travail après une coupu
 
 ## État
 - [x] Étape 0 : dépôt cloné, branche créée, code lu
-- [ ] Phase 1 web : country.ts, i18n, href, data.ts par pays, routage, textes, sélecteur, SEO
+- [~] Phase 1 web : FAIT country.ts, i18n (t/tp/rich), href, data.ts par pays + test anti-oubli, routage app/[country] + proxy.ts, layout + accueil + 404 traduits, sélecteur/bandeau/cookie/api/geo, sitemaps par pays, robots, seo.ts (hreflang). EN COURS (3 agents) : OfferCard/catégorie/recherche/vitamines ; fiche/comparer/alertes ; Optimiser/méthode/légal
 - [ ] Phase 1 collecte : règles par langue, pays en base (agent)
 - [ ] Phase 2 : tri des sites ES (agent), config, règles ES, collecte, codes, vérif en ligne
 - [ ] Bilan + notification
 
 ## Journal
 - 13/11 23:00 : démarrage.
+- 14/11 00:30 : coupure quota à 23:40 ; agents relancés. Référence France enregistrée dans /home/claude/baseline (pages HTML du site en ligne avant chantier).
+- Agents : tri ES → /home/claude/es-triage ; collecte par langue → worktree /home/claude/dh-collecte (branche multi-pays-collecte).

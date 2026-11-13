@@ -1,0 +1,36 @@
+import type fr from "../fr/common.ts";
+
+// Textos comunes (cabecera, pie, fechas relativas…).
+const es: Record<keyof typeof fr, string> = {
+  "common.meta.title": "DoseHunt · Comparador de proteína, creatina y suplementos al precio real",
+  "common.meta.description": "Comparador independiente: proteína whey, creatina, pre-entreno, colágeno, barritas, vitaminas y minerales ordenados por su precio real por gramo de activo, con el mejor código descuento incluido, en las tiendas que envían a España.",
+  "common.tagline": "El precio real de lo que te tomas.",
+  "common.country.label": "Elegir país",
+  "common.country.soon": "Pronto habrá más países",
+  "common.nav.categories": "Categorías",
+  "common.nav.compare": "Comparar",
+  "common.nav.alerts": "Alertas de precio",
+  "common.nav.optimize": "Optimizar mi compra",
+  "common.demo": "Datos de demostración: precios tomados a mano el 11/11/2026 en 11 tiendas (proteína y zinc). Las recogidas automáticas sustituirán estos datos.",
+  "common.footer.ranking": "Ordenado solo por el precio final real, sin posiciones pagadas. Algunos enlaces son de afiliación: <link>nuestro método</link>.",
+  "common.footer.noAdvice": "DoseHunt compara precios, no da consejos de dosis.",
+  "common.footer.legal": "Aviso legal",
+  "common.footer.privacy": "Privacidad",
+  "common.banner.suggest": "¿Estás en {country}?",
+  "common.banner.go": "Ir a la versión española →",
+  "common.banner.stay": "Quedarme aquí",
+  "common.compareBar.toCompare": "producto para comparar",
+  "common.compareBar.toCompareMany": "productos para comparar",
+  "common.compareBar.pickTwo": " (elige al menos 2)",
+  "common.compareBar.compare": "Comparar",
+  "common.compareBar.clear": "Vaciar",
+  "common.compareBar.region": "Productos para comparar",
+  "common.ago.unknown": "fecha desconocida",
+  "common.ago.min": "hace {n} min",
+  "common.ago.h": "hace {n} h",
+  "common.ago.date": "el {date}",
+  "common.notFound.text": "Esta página no existe o ya no está disponible.",
+  "common.notFound.home": "Volver al inicio",
+  "common.loading": "Cargando precios…",
+};
+export default es;

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { AlertForm } from "@/components/client";
+import { AlertForm } from "@/components/AlertForm";
 import { CATEGORIES, CATEGORY_BY_ID, modeDef, type Mode } from "@/lib/categories";
 import { getProduct, getRanking } from "@/lib/data";
 import { rerank } from "@/lib/rank";

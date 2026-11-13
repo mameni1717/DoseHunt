@@ -261,3 +261,12 @@ nav.cats a.navtool.cta::before { content: "★ "; }
 .opt-banner .opt-banner-kicker { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; font-weight: 700; opacity: .9; }
 .opt-banner .opt-banner-go { font-weight: 700; margin-top: 4px; }
 .opt-banner:hover { filter: brightness(1.05); }
+
+/* Choix du pays : sélecteur dans l'en-tête et bandeau de suggestion */
+.country-switch { position: relative; font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+.country-switch summary { list-style: none; cursor: pointer; border: 1px solid var(--line); padding: 6px 8px; border-radius: 4px; color: var(--muted); }
+.country-switch summary::-webkit-details-marker { display: none; }
+.country-switch ul { position: absolute; z-index: 20; margin: 4px 0 0; padding: 4px; list-style: none; background: var(--card); border: 1px solid var(--line); border-radius: 6px; min-width: 160px; box-shadow: 0 6px 20px rgba(0,0,0,.08); }
+.country-switch li a { display: block; padding: 8px 10px; border-radius: 4px; text-decoration: none; color: inherit; }
+.country-switch li a:hover, .country-switch li a[aria-current] { background: var(--line); }
+.country-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 14px; margin: 8px 0; border: 1px solid var(--line); border-radius: 6px; font-size: 14px; background: var(--card); }

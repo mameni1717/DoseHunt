@@ -1,4 +1,8 @@
-// Libellés, modes de comparaison et regroupement des catégories (miroir de config/categories.yaml côté collecte).
+// Catégories : structure (modes, sous-types, filtres) ici, libellés dans les traductions (messages/<lang>/cats.ts).
+// Miroir de config/categories.yaml côté collecte. Les libellés dépendent du pays : categories(country).
+
+import type { Country } from "./country.ts";
+import { t, type MessageKey } from "./i18n.ts";
 
 export type Mode = "dose" | "kg" | "unit";
 
@@ -17,111 +21,98 @@ export interface Category {
   filters?: ("lactose" | "sweetener" | "sucralose" | "minActive" | "milk")[];
 }
 
-const kg: ModeDef = { label: "Prix par kg de produit", unit: "€/kg", short: "€/kg produit" };
+/** Structure d'une catégorie, sans texte. modes : d'où vient le libellé de chaque mode (clé de traduction). */
+export interface CategorySpec {
+  id: string;
+  group: "main" | "vitamins";
+  defaultMode: Mode;
+  modes: Partial<Record<Mode, string>>;   // préfixe de clé : "cat.whey.dose", "cat.kg"…
+  subs?: string[];
+  filters?: Category["filters"];
+}
 
-export const CATEGORIES: Category[] = [
-  {
-    id: "whey", label: "Protéines en poudre", short: "Whey", group: "main", defaultMode: "dose",
-    modes: { dose: { label: "Prix par kg de protéine", unit: "€/kg prot.", short: "€/kg protéine" }, kg },
-    subs: { classique: "Whey classique", isolate: "Whey isolate", clear: "Clear whey", caseine: "Caséine", vegane: "Protéine végétale" },
-    activeName: "protéine", activeShare: "Taux de protéine",
-    filters: ["lactose", "sweetener", "sucralose", "minActive", "milk"],
-  },
-  {
-    id: "creatine", label: "Créatine", short: "Créatine", group: "main", defaultMode: "dose",
-    modes: { dose: { label: "Prix par kg de créatine", unit: "€/kg créat.", short: "€/kg créatine" }, kg },
-    activeName: "créatine", activeShare: "Taux de créatine", filters: ["sweetener"],
-  },
-  {
-    id: "preworkout", label: "Pré-workout", short: "Pré-workout", group: "main", defaultMode: "dose",
-    modes: { dose: { label: "Prix par portion", unit: "€/portion", short: "€/portion" }, kg },
-    activeName: "portion", activeShare: "Portion recommandée", filters: ["sweetener", "sucralose"],
-  },
-  {
-    id: "collagene", label: "Collagène", short: "Collagène", group: "main", defaultMode: "dose",
-    modes: { dose: { label: "Prix par kg de collagène", unit: "€/kg coll.", short: "€/kg collagène" }, kg },
-    activeName: "collagène", activeShare: "Taux de collagène", filters: ["sweetener"],
-  },
-  {
-    id: "barres", label: "Barres protéinées", short: "Barres", group: "main", defaultMode: "unit",
-    modes: {
-      unit: { label: "Prix par barre", unit: "€/barre", short: "€/barre" },
-      dose: { label: "Prix pour 100 g de protéine", unit: "€/100 g prot.", short: "€/100 g protéine" },
-      kg,
-    },
-    activeName: "protéine", activeShare: "Protéines par barre", filters: ["sweetener", "sucralose"],
-  },
-  {
-    id: "zinc", label: "Zinc", short: "Zinc", group: "vitamins", defaultMode: "dose",
-    modes: {
-      dose: { label: "Prix par g de zinc réel", unit: "€/g de zinc", short: "€/g zinc" },
-      unit: { label: "Prix par gélule ou comprimé", unit: "€/unité", short: "€/unité" },
-    },
-    activeName: "zinc", activeShare: "Zinc par unité",
-  },
-  {
-    id: "magnesium", label: "Magnésium", short: "Magnésium", group: "vitamins", defaultMode: "dose",
-    modes: {
-      dose: { label: "Prix par g de magnésium réel", unit: "€/g de Mg", short: "€/g magnésium" },
-      unit: { label: "Prix par gélule ou comprimé", unit: "€/unité", short: "€/unité" },
-    },
-    activeName: "magnésium", activeShare: "Magnésium par unité",
-  },
-  {
-    id: "vitamine_d", label: "Vitamine D", short: "Vitamine D", group: "vitamins", defaultMode: "dose",
-    modes: {
-      dose: { label: "Prix pour 100 000 UI", unit: "€/100 000 UI", short: "€/100 000 UI" },
-      unit: { label: "Prix par gélule ou goutte", unit: "€/unité", short: "€/unité" },
-    },
-    activeName: "vitamine D", activeShare: "Vitamine D par unité",
-  },
-  {
-    id: "vitamine_c", label: "Vitamine C", short: "Vitamine C", group: "vitamins", defaultMode: "dose",
-    modes: {
-      dose: { label: "Prix par g de vitamine C", unit: "€/g vit. C", short: "€/g vitamine C" },
-      unit: { label: "Prix par gélule ou comprimé", unit: "€/unité", short: "€/unité" },
-    },
-    activeName: "vitamine C", activeShare: "Vitamine C par unité",
-  },
-  {
-    id: "omega3", label: "Oméga-3", short: "Oméga-3", group: "vitamins", defaultMode: "dose",
-    modes: {
-      dose: { label: "Prix par g d'EPA + DHA", unit: "€/g EPA+DHA", short: "€/g EPA + DHA" },
-      unit: { label: "Prix par capsule", unit: "€/capsule", short: "€/capsule" },
-    },
-    activeName: "EPA + DHA", activeShare: "EPA + DHA par capsule",
-  },
-  {
-    id: "glutamine", label: "Glutamine", short: "Glutamine", group: "vitamins", defaultMode: "dose",
-    modes: { dose: { label: "Prix par kg de glutamine", unit: "€/kg glut.", short: "€/kg glutamine" }, kg },
-    activeName: "glutamine", activeShare: "Taux de glutamine",
-  },
+export const CATEGORY_SPECS: CategorySpec[] = [
+  { id: "whey", group: "main", defaultMode: "dose", modes: { dose: "cat.whey.dose", kg: "cat.kg" },
+    subs: ["classique", "isolate", "clear", "caseine", "vegane"], filters: ["lactose", "sweetener", "sucralose", "minActive", "milk"] },
+  { id: "creatine", group: "main", defaultMode: "dose", modes: { dose: "cat.creatine.dose", kg: "cat.kg" }, filters: ["sweetener"] },
+  { id: "preworkout", group: "main", defaultMode: "dose", modes: { dose: "cat.preworkout.dose", kg: "cat.kg" }, filters: ["sweetener", "sucralose"] },
+  { id: "collagene", group: "main", defaultMode: "dose", modes: { dose: "cat.collagene.dose", kg: "cat.kg" }, filters: ["sweetener"] },
+  { id: "barres", group: "main", defaultMode: "unit", modes: { unit: "cat.barres.unit", dose: "cat.barres.dose", kg: "cat.kg" },
+    filters: ["sweetener", "sucralose"] },
+  { id: "zinc", group: "vitamins", defaultMode: "dose", modes: { dose: "cat.zinc.dose", unit: "cat.unitMode" } },
+  { id: "magnesium", group: "vitamins", defaultMode: "dose", modes: { dose: "cat.magnesium.dose", unit: "cat.unitMode" } },
+  { id: "vitamine_d", group: "vitamins", defaultMode: "dose", modes: { dose: "cat.vitamine_d.dose", unit: "cat.vitamine_d.unit" } },
+  { id: "vitamine_c", group: "vitamins", defaultMode: "dose", modes: { dose: "cat.vitamine_c.dose", unit: "cat.unitMode" } },
+  { id: "omega3", group: "vitamins", defaultMode: "dose", modes: { dose: "cat.omega3.dose", unit: "cat.omega3.unit" } },
+  { id: "glutamine", group: "vitamins", defaultMode: "dose", modes: { dose: "cat.glutamine.dose", kg: "cat.kg" } },
 ];
 
-export const CATEGORY_BY_ID: Record<string, Category> = Object.fromEntries(CATEGORIES.map((c) => [c.id, c]));
-export const MAIN_CATEGORIES = CATEGORIES.filter((c) => c.group === "main");
-export const VITAMIN_CATEGORIES = CATEGORIES.filter((c) => c.group === "vitamins");
-export const VITAMINS_GROUP = { id: "vitamines", label: "Vitamines & autres", short: "Vitamines & autres" };
+export const CATEGORY_IDS = CATEGORY_SPECS.map((c) => c.id);
+export const SPEC_BY_ID: Record<string, CategorySpec> = Object.fromEntries(CATEGORY_SPECS.map((c) => [c.id, c]));
+export const VITAMINS_ID = "vitamines";
 
-export function modeOf(c: Category, m: string | undefined): Mode {
+function build(country: Country): Category[] {
+  const L = country.lang;
+  const k = (key: string) => t(L, key as MessageKey, { cur: country.symbol });
+  return CATEGORY_SPECS.map((s) => ({
+    id: s.id, group: s.group, defaultMode: s.defaultMode, filters: s.filters,
+    label: k(`cat.${s.id}.label`), short: k(`cat.${s.id}.short`),
+    activeName: k(`cat.${s.id}.activeName`), activeShare: k(`cat.${s.id}.activeShare`),
+    modes: Object.fromEntries(Object.entries(s.modes).map(([m, p]) =>
+      [m, { label: k(`${p}.label`), unit: k(`${p}.unit`), short: k(`${p}.short`) }])) as Partial<Record<Mode, ModeDef>>,
+    subs: s.subs ? Object.fromEntries(s.subs.map((sub) => [sub, k(`cat.${s.id}.sub.${sub}`)])) : undefined,
+  }));
+}
+
+const cache = new Map<string, { all: Category[]; byId: Record<string, Category> }>();
+function forCountry(country: Country) {
+  let c = cache.get(country.code);
+  if (!c) {
+    const all = build(country);
+    c = { all, byId: Object.fromEntries(all.map((x) => [x.id, x])) };
+    cache.set(country.code, c);
+  }
+  return c;
+}
+
+/** Catégories avec les libellés du pays. */
+export function categories(country: Country): Category[] {
+  return forCountry(country).all;
+}
+export function categoryById(country: Country): Record<string, Category> {
+  return forCountry(country).byId;
+}
+export function mainCategories(country: Country): Category[] {
+  return categories(country).filter((c) => c.group === "main");
+}
+export function vitaminCategories(country: Country): Category[] {
+  return categories(country).filter((c) => c.group === "vitamins");
+}
+export function vitaminsGroup(country: Country) {
+  return { id: VITAMINS_ID, label: t(country.lang, "cat.vitamins.label"), short: t(country.lang, "cat.vitamins.short") };
+}
+
+export function modeOf(c: Category | CategorySpec, m: string | undefined): Mode {
   return m && c.modes[m as Mode] ? (m as Mode) : c.defaultMode;
 }
 
-export function modeDef(cat: string, mode: Mode): ModeDef {
-  const c = CATEGORY_BY_ID[cat];
+export function modeDef(country: Country, cat: string, mode: Mode): ModeDef {
+  const c = categoryById(country)[cat];
   return c.modes[mode] ?? c.modes[c.defaultMode]!;
 }
 
-export const MILK_ORIGINS: Record<string, string> = {
-  FR: "France", IE: "Irlande", NL: "Pays-Bas", DE: "Allemagne", NZ: "Nouvelle-Zélande", EU: "Union européenne",
-};
+export const MILK_CODES = ["FR", "IE", "NL", "DE", "NZ", "EU", "ES"];
+export function milkOrigin(country: Country, code: string): string {
+  return MILK_CODES.includes(code) ? t(country.lang, `cat.milk.${code}` as MessageKey) : code;
+}
 
-export function activeLabel(cat: string, amount: number | null, unit: string | null, basis: string | null): string {
-  if (amount == null) return "teneur inconnue";
-  const c = CATEGORY_BY_ID[cat];
-  const n = amount.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
-  if (basis === "per_serving") return `${n} g par portion`;
-  if (basis === "per_100g" && unit === "g") return `${n} %`;
-  if (basis === "per_100g") return `${n} ${unit} pour 100 g`;
-  return `${n} ${unit} de ${c?.activeName ?? "actif"} par unité`;
+export function activeLabel(country: Country, cat: string, amount: number | null, unit: string | null, basis: string | null): string {
+  const L = country.lang;
+  if (amount == null) return t(L, "cat.active.unknown");
+  const c = categoryById(country)[cat];
+  const n = amount.toLocaleString(country.locale, { maximumFractionDigits: 1 });
+  if (basis === "per_serving") return t(L, "cat.active.perServing", { n });
+  if (basis === "per_100g" && unit === "g") return t(L, "cat.active.percent", { n });
+  if (basis === "per_100g") return t(L, "cat.active.per100", { n, unit: unit ?? "" });
+  return t(L, "cat.active.perUnit", { n, unit: unit ?? "", active: c?.activeName ?? t(L, "cat.active.fallback") });
 }

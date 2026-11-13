@@ -90,99 +90,57 @@ export function ApplyFilters({ children }: { children?: ReactNode }) {
 // ------------------------------------------------------------------ comparateur : sélection gardée dans le navigateur
 
 type Picked = { id: number; cat: string; label: string };
-const KEY = "dosehunt-compare";
+// Une sélection par pays : un produit espagnol ne se compare pas sur la version française.
+const keyFor = (country: string) => `dosehunt-compare-${country}`;
 const EVENT = "dosehunt-compare-change";
 
-function readPicked(): Picked[] {
-  try { return JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { return []; }
+function readPicked(country: string): Picked[] {
+  try { return JSON.parse(localStorage.getItem(keyFor(country)) || (country === "FR" ? localStorage.getItem("dosehunt-compare") : null) || "[]"); }
+  catch { return []; }
 }
-function writePicked(list: Picked[]) {
-  try { localStorage.setItem(KEY, JSON.stringify(list)); } catch { /* stockage indisponible */ }
+function writePicked(country: string, list: Picked[]) {
+  try { localStorage.setItem(keyFor(country), JSON.stringify(list)); } catch { /* stockage indisponible */ }
   window.dispatchEvent(new Event(EVENT));
 }
 
-function usePicked(): Picked[] {
+function usePicked(country: string): Picked[] {
   const [list, setList] = useState<Picked[]>([]);
   useEffect(() => {
-    const sync = () => setList(readPicked());
+    const sync = () => setList(readPicked(country));
     sync();
     window.addEventListener(EVENT, sync);
     window.addEventListener("storage", sync);
     return () => { window.removeEventListener(EVENT, sync); window.removeEventListener("storage", sync); };
-  }, []);
+  }, [country]);
   return list;
 }
 
-export function CompareToggle({ id, cat, label }: Picked) {
-  const list = usePicked();
+export function CompareToggle({ id, cat, label, country, m }: Picked & { country: string; m: { add: string; added: string } }) {
+  const list = usePicked(country);
   const on = list.some((p) => p.id === id);
   return (
     <button type="button" className={`btn ghost small${on ? " on" : ""}`} aria-pressed={on}
       onClick={() => {
-        const cur = readPicked();
-        writePicked(on ? cur.filter((p) => p.id !== id) : [...cur.filter((p) => p.id !== id), { id, cat, label }].slice(-6));
+        const cur = readPicked(country);
+        writePicked(country, on ? cur.filter((p) => p.id !== id) : [...cur.filter((p) => p.id !== id), { id, cat, label }].slice(-6));
       }}>
-      {on ? "✓ Comparé" : "Comparer"}
+      {on ? m.added : m.add}
     </button>
   );
 }
 
-export function CompareBar() {
-  const list = usePicked();
+export interface CompareBarText { toCompare: string; toCompareMany: string; pickTwo: string; compare: string; clear: string; region: string }
+
+export function CompareBar({ country, prefix, m }: { country: string; lang?: string; prefix: string; m: CompareBarText }) {
+  const list = usePicked(country);
   if (list.length === 0) return null;
   return (
-    <div className="comparebar" role="region" aria-label="Produits à comparer">
-      <span><b>{list.length}</b> produit{list.length > 1 ? "s" : ""} à comparer{list.length < 2 ? " (choisis-en au moins 2)" : ""}</span>
+    <div className="comparebar" role="region" aria-label={m.region}>
+      <span><b>{list.length}</b> {list.length > 1 ? m.toCompareMany : m.toCompare}{list.length < 2 ? m.pickTwo : ""}</span>
       <span className="names">{list.map((p) => p.label).join(" · ")}</span>
-      {list.length >= 2 && <a className="btn blaze" href={`/comparer?ids=${list.map((p) => p.id).join(",")}`}>Comparer</a>}
-      <button type="button" className="btn ghost small" onClick={() => writePicked([])}>Vider</button>
+      {list.length >= 2 && <a className="btn blaze" href={`${prefix}/comparer?ids=${list.map((p) => p.id).join(",")}`}>{m.compare}</a>}
+      <button type="button" className="btn ghost small" onClick={() => writePicked(country, [])}>{m.clear}</button>
     </div>
-  );
-}
-
-/** Formulaire d'alerte prix (e-mail + seuil + unité). */
-export function AlertForm({ product, cat, sub, units, defaults }: {
-  product?: number; cat: string; sub?: string;
-  units: { mode: string; label: string }[];             // « prix du produit (€) », « €/kg de protéine »…
-  defaults?: Record<string, number>;                    // valeur actuelle par mode, pour pré-remplir
-}) {
-  const [state, setState] = useState<"idle" | "busy" | "ok" | "error">("idle");
-  const [msg, setMsg] = useState("");
-  const [mode, setMode] = useState(units[0]?.mode ?? "dose");
-  const fmt = (v?: number) => (v ? (Math.floor(v * 0.95 * 100) / 100).toFixed(2).replace(".", ",") : "");
-  async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    setState("busy");
-    try {
-      const r = await fetch("/api/alerts", {
-        method: "POST", headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: fd.get("email"), threshold: Number(String(fd.get("threshold")).replace(",", ".")),
-                               product_id: product ?? null, category: cat, subcategory: sub ?? null, mode }),
-      });
-      const j = await r.json().catch(() => ({}));
-      setState(r.ok ? "ok" : "error");
-      setMsg(j.message ?? (r.ok ? "Alerte enregistrée." : "Enregistrement impossible."));
-    } catch {
-      setState("error");
-      setMsg("Enregistrement impossible, réessaie plus tard.");
-    }
-  }
-  if (state === "ok") return <p className="ok" role="status">{msg}</p>;
-  return (
-    <form className="alertform" onSubmit={submit}>
-      <label>Ton e-mail <input type="email" name="email" required autoComplete="email" placeholder="toi@exemple.fr" /></label>
-      <label>Me prévenir quand
-        <select value={mode} onChange={(e) => setMode(e.target.value)}>
-          {units.map((u) => <option key={u.mode} value={u.mode}>{u.label}</option>)}
-        </select>
-      </label>
-      <label>passe sous <input key={mode} name="threshold" inputMode="decimal" required defaultValue={fmt(defaults?.[mode])} /></label>
-      <button type="submit" className="btn blaze" disabled={state === "busy"}>{state === "busy" ? "Envoi…" : "Créer l'alerte"}</button>
-      {state === "error" && <p className="err" role="alert">{msg}</p>}
-      <p className="note-small">Un e-mail de confirmation t'est envoyé avant toute alerte. Ton adresse ne sert qu'à ça et chaque
-        e-mail contient un lien de désinscription.</p>
-    </form>
   );
 }
 
