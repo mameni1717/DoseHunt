@@ -15,6 +15,7 @@ export interface Attributes {
   ingredient_count?: number | null;
   milk_origin?: string;
   grass_fed?: boolean;
+  preworkout?: Record<string, { label: string; dose: number; unit: string; ref: number; ok: boolean }>;
 }
 
 export interface IndexRow {
@@ -51,6 +52,12 @@ export interface IndexRow {
   rating?: number | null;
   review_count?: number | null;
   attributes?: Attributes | null;
+  hist_min?: number | null;        // plus bas prix final relevé sur 90 jours
+  hist_avg30?: number | null;      // prix habituel : moyenne des relevés des 30 derniers jours
+  hist_since?: string | Date | null;
+  hist_n?: number | null;          // nombre de relevés (un relevé = un changement de prix)
+  free_from?: number | null;       // livraison offerte dès … € chez ce marchand
+  free_code?: string | null;       // code « livraison offerte » connu
   amount: number | null;
   unit: string | null;
   basis: string | null;

@@ -54,13 +54,44 @@ export async function getCodes(): Promise<PromoCode[]> {
   return q<PromoCode>(`select * from promo_codes where country = $1`, [COUNTRY]);
 }
 
+/** Historique (plus bas sur 90 jours, prix habituel sur 30 jours) et livraison offerte, ajoutés aux lignes. */
+export async function enrich(rows: IndexRow[], codes?: PromoCode[]): Promise<IndexRow[]> {
+  if (!rows.length) return rows;
+  const ids = [...new Set(rows.map((r) => r.offer_id))];
+  const [hist, ship] = await Promise.all([
+    q<{ offer_id: number; min90: number | null; avg30: number | null; since: Date; n: number }>(
+      `select offer_id,
+              min(coalesce(final_price, price)) as min90,
+              avg(coalesce(final_price, price)) filter (where observed_at > now() - interval '30 days') as avg30,
+              min(observed_at) as since, count(*)::int as n
+         from price_history where offer_id = any($1::int[]) and observed_at > now() - interval '90 days'
+        group by offer_id`, [ids]).catch(() => []),
+    q<{ site_id: string; free_threshold: number | null }>(`select site_id, free_threshold from shipping where country = $1`, [COUNTRY]).catch(() => []),
+  ]);
+  const h = new Map(hist.map((x) => [x.offer_id, x]));
+  const s = new Map(ship.map((x) => [x.site_id, x.free_threshold]));
+  const freeCodes = new Map<string, string>();
+  for (const c of codes ?? await getCodes()) if (c.discount_type === "free_shipping" && !freeCodes.has(c.site_id)) freeCodes.set(c.site_id, c.code);
+  for (const r of rows) {
+    const x = h.get(r.offer_id);
+    r.hist_min = x?.min90 != null ? Number(x.min90) : null;
+    r.hist_avg30 = x?.avg30 != null ? Number(x.avg30) : null;
+    r.hist_since = x?.since ?? null;
+    r.hist_n = x?.n ?? 0;
+    r.free_from = s.get(r.site_id) ?? null;
+    r.free_code = freeCodes.get(r.site_id) ?? null;
+  }
+  return rows;
+}
+
 export async function getRanking(cat: string, filters: Filters, opts: RankOptions): Promise<{ rows: Ranked[]; facets: Facets }> {
   const params: unknown[] = [COUNTRY, cat];
   let sql = ROW_SELECT + ` and i.category = $2`;
-  const base = await q<IndexRow>(sql, params);
+  const codes = await getCodes();
+  const base = await enrich(await q<IndexRow>(sql, params), codes);
   const facets = buildFacets(base);
   const filtered = base.filter((r) => matches(r, filters));
-  return { rows: rerank(filtered, await getCodes(), opts), facets };
+  return { rows: rerank(filtered, codes, opts), facets };
 }
 
 export interface Facets {
@@ -117,8 +148,9 @@ export async function getProduct(id: number) {
     product_type: string | null; last_seen: Date; active: boolean;
     origin_country: string | null; origin_evidence: string | null; image_url: string | null; rating: number | null;
     review_count: number | null; ingredients: string | null; nutrition: Nutrition | null; attributes: Attributes | null;
+    review_topics: { reviews_read: number; topics: Record<string, { mentions: number; pos: number; neg: number }> } | null;
   }>(`select p.id, p.site_id, s.name as site_name, p.brand, p.name, p.url, p.product_type, p.last_seen, p.active,
-             p.origin_country, p.origin_evidence, p.image_url, p.rating, p.review_count, p.ingredients, p.nutrition, p.attributes
+             p.origin_country, p.origin_evidence, p.image_url, p.rating, p.review_count, p.ingredients, p.nutrition, p.attributes, p.review_topics
         from products p join sites s on s.id = p.site_id where p.id = $1`, [id]);
   if (!product) return null;
   const actives = await q<{
@@ -127,7 +159,7 @@ export async function getProduct(id: number) {
     salt_label_mg: number | null; form: string | null; note: string | null; status: string; read_at: Date;
   }>(`select category, subcategory, combined, amount, unit, basis, source, confidence, evidence, salt_label_mg, form,
              note, status, read_at from product_actives where product_id = $1 order by category`, [id]);
-  const rows = await q<IndexRow>(ROW_SELECT + ` and p.id = $2`, [COUNTRY, id]);
+  const rows = await enrich(await q<IndexRow>(ROW_SELECT + ` and p.id = $2`, [COUNTRY, id]));
   const offers = await q<{
     id: number; variant_title: string | null; flavour: string | null; price: number; compare_at_price: number | null;
     available: boolean; url: string; collected_at: Date; grams: number | null; units: number | null; unit_word: string | null;
@@ -179,6 +211,7 @@ export async function getCompare(ids: number[], cat?: string): Promise<CompareIt
     ? await q<IndexRow>(ROW_SELECT + ` and p.id = any($2::int[]) and i.category = $3`, [COUNTRY, ids, cat])
     : await q<IndexRow>(ROW_SELECT + ` and p.id = any($2::int[])`, [COUNTRY, ids]);
   const codes = await getCodes();
+  await enrich(rows, codes);
   const details = await q<{ id: number; ingredients: string | null; nutrition: Nutrition | null }>(
     `select id, ingredients, nutrition from products where id = any($1::int[])`, [ids]);
   const byId = new Map(details.map((d) => [d.id, d]));

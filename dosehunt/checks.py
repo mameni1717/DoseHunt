@@ -12,7 +12,11 @@ MIN_CONFIDENCE_FOR_INDEX = 0.55
 def check_active(ac: ActiveContent) -> Optional[str]:
     """Renvoie la raison du rejet, ou None si la teneur est plausible."""
     c = categories()[ac.category]
-    if ac.basis == "per_100g":
+    if ac.basis == "per_serving":
+        lo, hi = c.get("range_serving", [2, 40])
+        if not lo <= ac.amount <= hi:
+            return f"portion de {ac.amount:g} g hors fourchette [{lo}, {hi}]"
+    elif ac.basis == "per_100g":
         lo, hi = c.get("range", [0, 100])
         if not lo <= ac.amount <= hi:
             return f"{ac.amount:g} {ac.unit} pour 100 g hors fourchette [{lo}, {hi}]"
@@ -33,7 +37,7 @@ def check_active(ac: ActiveContent) -> Optional[str]:
 def check_format(fmt: Format, basis: str) -> Optional[str]:
     if fmt.confidence == 0:
         return f"format illisible : « {fmt.raw} »"
-    if basis == "per_100g" and fmt.total_grams is None:
+    if basis in ("per_100g", "per_serving") and fmt.total_grams is None:
         return f"poids net introuvable : « {fmt.raw} »"
     if basis == "per_unit" and fmt.total_units is None:
         return f"nombre d'unités introuvable : « {fmt.raw} »"

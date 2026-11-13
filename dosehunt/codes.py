@@ -159,3 +159,68 @@ def collect_site_codes(site: Site, client: Optional[PoliteClient] = None, pages:
         if own:
             client.close()
     return list(merged.values())
+
+
+# --------------------------------------------------------------------------- livraison offerte
+
+_AMOUNT = r"(?:€\s*(\d{1,3}(?:[.,]\d{1,2})?)|(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:€|euros?\b|eur\b))"
+_FROM = r"(?:d[èe]s|des|[àa]\s+partir\s+de|au[- ]del[àa]\s+de|au[- ]dessus\s+de|pour\s+(?:toute\s+)?commande\s+(?:de|sup[ée]rieure\s+[àa]))"
+FREE_FROM = [
+    # « Livraison offerte dès 49 € », « Livraison Mondial Relay offerte dès 59,90 € », « LIVRAISON GRATUITE AU-DESSUS DE €50 »
+    re.compile(r"(?:livraison|frais\s+de\s+port)[^.\n€]{0,45}?(?:offerte|gratuite|offerts?|gratuits?)[^.\n€\d]{0,50}?" + _FROM + r"\s*" + _AMOUNT, re.I),
+    # « Dès 60 € d'achat, livraison offerte »
+    re.compile(_FROM + r"\s*" + _AMOUNT + r"\s*(?:d['’]achats?)?\s*[:,-]?\s*(?:la\s+)?livraison\s+(?:est\s+)?(?:offerte|gratuite)", re.I),
+]
+FREE_ALWAYS = re.compile(r"livraison\s+(?:offerte|gratuite)\s+(?:sans\s+minimum|d[èe]s\s+(?:le\s+)?(?:1er|premier)\s+euro|sur\s+toutes?\s+(?:les\s+)?commandes?)", re.I)
+FREE_CODE = [
+    re.compile(r"livraison\s+(?:offerte|gratuite)[^.\n]{0,60}?code\s*(?:promo\s*)?[:«\"“]?\s*" + CODE_TOKEN + r"\b", re.I),
+    re.compile(r"code\s*(?:promo\s*)?[:«\"“]?\s*" + CODE_TOKEN + r"[»\"”]?\s*[^.\n]{0,40}?livraison\s+(?:offerte|gratuite)", re.I),
+]
+
+
+def shipping_info(text: str) -> tuple[Optional[float], list[str], str]:
+    """(seuil de livraison offerte en €, codes « livraison offerte », extrait) lus dans une page du site.
+
+    Le seuil le plus souvent cité l'emporte (un bandeau répété sur la page compte plusieurs fois)."""
+    counts: dict[float, int] = {}
+    evidence = ""
+    for rx in FREE_FROM:
+        for m in rx.finditer(text):
+            v = float((m.group(1) or m.group(2)).replace(",", "."))
+            if 5 <= v <= 300:
+                counts[v] = counts.get(v, 0) + 1
+                evidence = evidence or re.sub(r"\s+", " ", m.group(0))[:160]
+    threshold = max(counts, key=lambda k: (counts[k], -k)) if counts else None
+    if threshold is None and (m := FREE_ALWAYS.search(text)):
+        threshold, evidence = 0.0, re.sub(r"\s+", " ", m.group(0))[:160]
+    codes = []
+    for rx in FREE_CODE:
+        for m in rx.finditer(text):
+            c = m.group(1)
+            if c not in STOP and c not in codes and (re.search(r"\d", c) or len(c) >= 5):
+                codes.append(c)
+    return threshold, codes, evidence
+
+
+def collect_site_shipping(site: Site, client: Optional[PoliteClient] = None) -> tuple[Optional[float], list[str], str]:
+    own = client is None
+    client = client or PoliteClient(delay_seconds=site.delay_seconds)
+    pages = [site.root + "/"] + [u if u.startswith("http") else site.base_url.rstrip("/") + u
+                                 for u in (site.filters or {}).get("shipping_pages", [])]
+    best: tuple[Optional[float], list[str], str] = (None, [], "")
+    try:
+        for url in pages:
+            try:
+                resp = client.get(url, accept_404=True)
+            except (FetchError, BlockedByRobots):
+                continue
+            if resp is None:
+                continue
+            th, codes, ev = shipping_info(html_to_text(resp.text))
+            if th is not None and best[0] is None:
+                best = (th, best[1], ev)
+            best = (best[0], list(dict.fromkeys(best[1] + codes)), best[2])
+    finally:
+        if own:
+            client.close()
+    return best

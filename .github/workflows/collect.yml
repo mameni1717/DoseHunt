@@ -96,4 +96,7 @@ jobs:
         run: dosehunt codes
       - name: Alertes prix
         run: dosehunt alerts
+      - name: Ce qui manque encore (rayons des marchands vs produits classés)
+        if: needs.plan.outputs.full == '1'
+        run: dosehunt gaps || true
       - run: dosehunt status

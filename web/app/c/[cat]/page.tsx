@@ -7,15 +7,43 @@ import { CATEGORY_BY_ID, MILK_ORIGINS, VITAMINS_GROUP, modeDef, modeOf, type Mod
 import { getRanking } from "@/lib/data";
 import { displayName, num, qs } from "@/lib/format";
 import { currentCountry } from "@/lib/country";
+import { SITE_URL, monthYear } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
 const PAGE = 20;
 type SP = Record<string, string | undefined>;
 
-export async function generateMetadata({ params }: { params: Promise<{ cat: string }> }): Promise<Metadata> {
+const SEO_TITLE: Record<string, string> = {
+  whey: "Whey pas chère : comparatif au prix du kg de protéine",
+  creatine: "Créatine pas chère : comparatif au prix du kg de créatine",
+  preworkout: "Pré-workout : comparatif au prix de la portion",
+  collagene: "Collagène pas cher : comparatif au prix du kg de collagène",
+  barres: "Barres protéinées pas chères : comparatif au prix par barre",
+  zinc: "Zinc : comparatif au prix du zinc réel (pas du sel)",
+  magnesium: "Magnésium : comparatif au prix du magnésium réel",
+  vitamine_d: "Vitamine D3 : comparatif au prix des 100 000 UI",
+  vitamine_c: "Vitamine C : comparatif au prix du gramme",
+  omega3: "Oméga-3 : comparatif au prix de l'EPA + DHA",
+  glutamine: "Glutamine : comparatif au prix du kg",
+};
+
+export async function generateMetadata({ params, searchParams }: { params: Promise<{ cat: string }>; searchParams: Promise<SP> }): Promise<Metadata> {
   const c = CATEGORY_BY_ID[(await params).cat];
-  return c ? { title: `${c.label} : le moins cher au gramme utile` } : {};
+  if (!c) return {};
+  const sp = await searchParams;
+  const sub = sp.sub && c.subs?.[sp.sub];
+  const filtered = Object.keys(sp).some((k) => k !== "sub" && sp[k]);
+  const title = `${sub ? `${sub} : ` : ""}${SEO_TITLE[c.id] ?? c.label} (${monthYear()})`;
+  const description = `${c.label}${sub ? ` (${sub})` : ""} : toutes les offres des marchands français classées au vrai prix ` +
+    `(${modeDef(c.id, c.defaultMode).label.toLowerCase()}), meilleur code promo appliqué, prix mis à jour plusieurs fois par jour.`;
+  const path = `/c/${c.id}${sub ? `?sub=${sp.sub}` : ""}`;
+  return {
+    title, description,
+    alternates: { canonical: path },
+    openGraph: { title, description, url: path },
+    robots: filtered ? { index: false, follow: true } : undefined,   // vues filtrées : pas de doublons dans Google
+  };
 }
 
 export default async function CategoryPage({ params, searchParams }: { params: Promise<{ cat: string }>; searchParams: Promise<SP> }) {
@@ -137,6 +165,13 @@ export default async function CategoryPage({ params, searchParams }: { params: P
             {extraActive > 0 && <Link className="btn ghost" href={qs({ sub: sp.sub, mode: sp.mode }, {})}>Tout réinitialiser</Link>}</div>
         </details>
       </form>
+
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
+        "@context": "https://schema.org", "@type": "ItemList", name: c.label,
+        itemListElement: inStock.slice(0, 20).map((r, i) => ({
+          "@type": "ListItem", position: i + 1, url: `${SITE_URL}/p/${r.product_id}`, name: displayName(r.brand, r.name, " "),
+        })),
+      }) }} />
 
       {visible.length > 0 ? (
         <ol className="list">

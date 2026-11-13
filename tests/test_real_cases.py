@@ -306,8 +306,9 @@ def test_clear_whey_subcategory():
     assert sub("Clear Whey Isolate") == [("whey", "clear")]
     assert sub("Clear Vegan Protein") == [("whey", "vegane")]
     assert sub("Native Micellar Casein Isolate") == [("whey", "caseine")]
-    assert extract("preworkout", "<table><tr><td>Pour 10 g</td><td>AR</td></tr><tr><td>Caféine</td><td>200 mg</td><td>-</td></tr></table>",
-                   "C4", parse_format("300 g")).amount == 2000
+    ac = extract("preworkout", "<table><tr><td>Pour 10 g</td><td>AR</td></tr><tr><td>Caféine</td><td>200 mg</td><td>-</td></tr></table>",
+                 "C4", parse_format("300 g"))
+    assert ac.amount == 10 and ac.basis == "per_serving"
 
 
 def test_product_details_ingredients_nutrition_attributes():
@@ -364,3 +365,47 @@ def test_page_image_og_first_relative_and_https():
     assert page_extras(rel, "https://www.optigura.fr/product/x")["image_url"] == "https://www.optigura.fr/img/prods/1/main.webp"
     assert page_extras('<meta property="og:image" content="http://shop.fr/a.jpg">')["image_url"] == "https://shop.fr/a.jpg"
     assert page_extras('<meta property="og:image" content="https://shop.fr/logo.png">')["image_url"] is None
+
+
+def test_rayon_category_when_name_is_silent():
+    from dosehunt.classify import classify
+    from dosehunt.models import RawProduct
+    p = RawProduct(site_id="hsn", external_id="1", handle="", title="Evobomb", url="", rayon_categories=["preworkout"])
+    assert [(c.category) for c in classify(p)] == ["preworkout"]
+    gel = RawProduct(site_id="z", external_id="2", handle="", title="Energy Gel citron", url="", rayon_categories=["barres"])
+    assert classify(gel) == []                      # rayon « barres, boissons et gels » : pas une barre sans le mot
+    caps = RawProduct(site_id="z", external_id="3", handle="", title="Caféine 200 mg 90 comprimés", url="", rayon_categories=["preworkout"])
+    assert classify(caps) == []
+
+
+def test_preworkout_price_per_serving_and_profile():
+    from dosehunt.pricing import compute
+    from dosehunt.models import Format
+    from dosehunt.details import preworkout_profile
+    from dosehunt.collectors.base import html_to_text
+    body = ("<p>Dose : 12,5 g</p><table><tr><th>Nutriments</th><th>Pour 100 g</th><th>Par portion (12,5 g)</th></tr>"
+            "<tr><td>Caféine</td><td>1600 mg</td><td>200 mg</td></tr><tr><td>L-Citrulline</td><td>40 g</td><td>5 g</td></tr></table>")
+    ac = extract("preworkout", body, "Pre X", parse_format("375 g"))
+    assert ac.basis == "per_serving" and ac.amount == 12.5
+    r = compute("preworkout", 30.0, Format(grams=375, confidence=1, raw="375 g"), ac, None)
+    assert r.dose_value == 1.0                      # 30 € / 30 portions
+    prof = preworkout_profile(html_to_text(body))
+    assert prof["caffeine"]["dose"] == 200 and prof["caffeine"]["ok"] and not prof["citrulline"]["ok"]
+
+
+def test_free_shipping_threshold_and_code():
+    from dosehunt.codes import shipping_info
+    assert shipping_info("Livraison Mondial Relay offerte dès 59,90€ *")[0] == 59.9
+    assert shipping_info("LIVRAISON GRATUITE AU-DESSUS DE €50 | LIVRÉ EN 48 HEURES")[0] == 50
+    assert shipping_info("Livraison offerte avec le code FREESHIP24")[1] == ["FREESHIP24"]
+
+
+def test_review_topics_from_page():
+    from dosehunt.details import review_topics
+    reviews = [("Très bon goût, se mélange bien.", 5), ("Goût chimique, déçu.", 1), ("Super goût vanille", 5),
+               ("Aucun souci de digestion", 5), ("Ballonnements, digestion difficile", 2)]
+    page = "".join(f'<script type="application/ld+json">{{"@type":"Review","reviewBody":"{t}","reviewRating":{{"ratingValue":"{n}"}}}}</script>'
+                   for t, n in reviews)
+    t = review_topics(page)["topics"]
+    assert t["Goût"] == {"mentions": 3, "pos": 2, "neg": 1}
+    assert t["Digestion"]["mentions"] == 2

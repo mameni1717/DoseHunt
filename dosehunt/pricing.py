@@ -88,6 +88,8 @@ def best_code(site_id: str, country: str, category: str, price: float, on_sale: 
             continue
         if c.effective_confidence(today) < threshold:
             continue
+        if c.discount_type == "free_shipping":
+            continue                                  # livraison offerte : affichée, ne change pas le prix du produit
         if c.discount_type == "percent":
             pct = c.percent_for(price)
             if pct is None:
@@ -128,12 +130,18 @@ def compute(category: str, price: float, fmt: Format, ac: ActiveContent, applied
         total_active = grams * ac.amount / 100
         share = f"{ac.amount:g} %" if ac.unit == "g" else f"{ac.amount:g} {ac.unit} pour 100 g"
         calc.append(f"Contenu : {grams:g} g × {share} = {total_active:g} {ac.unit} d'actif")
+    elif ac.basis == "per_serving" and grams:
+        total_active = grams / ac.amount                 # nombre de portions dans le contenant
+        calc.append(f"Contenu : {grams:g} g ÷ portion de {ac.amount:g} g = {total_active:.0f} portions")
     elif ac.basis == "per_unit" and units:
         total_active = units * ac.amount
         calc.append(f"Contenu : {units} unités × {ac.amount:g} {ac.unit} = {total_active:g} {ac.unit} d'actif")
 
     dose = None
-    if total_active:
+    if total_active and ac.basis == "per_serving":
+        dose = final / total_active                       # prix d'une portion
+        calc.append(f"{c['dose_label']} : {dose:.2f}")
+    elif total_active:
         if ac.unit == "g":
             div = c.get("dose_divisor_g", 1000)
             dose = final / (total_active / div)
@@ -147,6 +155,8 @@ def compute(category: str, price: float, fmt: Format, ac: ActiveContent, applied
     kg = final / (grams / 1000) if grams else None
     if ac.basis == "per_unit" and units:
         unit_value, unit_label = final / units, f"€/{fmt.unit_word or 'unité'}"
+    elif grams and ac.basis == "per_serving":
+        unit_value, unit_label = final / (grams / ac.amount), f"€/portion de {ac.amount:g} g"
     elif grams:
         serving = c.get("serving_g") or DEFAULT_SERVING_G.get(category, 30)
         unit_value, unit_label = final / (grams / serving), f"€/portion de {serving} g"

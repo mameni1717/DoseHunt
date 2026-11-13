@@ -236,7 +236,133 @@ def attributes(text: str, ingr: Optional[str]) -> dict:
     return att
 
 
+# --------------------------------------------------------------------------- pré-workout : actifs par portion
+
+# Doses utilisées dans les études (référence affichée à côté de la dose de la portion, jamais un conseil)
+PRE_ACTIVES = {
+    "caffeine": (r"caf[ée]ine(?: anhydre| naturelle)?|caffeine(?: anhydrous)?", "mg", 200, "Caféine"),
+    "citrulline_malate": (r"(?:l-)?citrulline malate|malate de (?:l-)?citrulline", "g", 8, "Citrulline malate"),
+    "citrulline": (r"(?:l-)?citrulline(?! malate)", "g", 6, "Citrulline"),
+    "beta_alanine": (r"b[êe]ta[- ]?alanine|beta[- ]alanine|carnosyn", "g", 3.2, "Bêta-alanine"),
+    "creatine": (r"(?:monohydrate de )?cr[ée]atine(?: monohydrate)?|creapure", "g", 3, "Créatine"),
+    "betaine": (r"b[ée]ta[iï]ne(?: anhydre)?", "g", 2.5, "Bétaïne"),
+}
+
+
+def _per_serving_value(text: str, rx: str) -> Optional[tuple[float, str]]:
+    """Quantité par portion d'un actif : colonne « par portion » du tableau, sinon « 200 mg de caféine »."""
+    from .extract import table_value
+    tv = table_value(text, r"(?:" + rx + ")", "unit")
+    if tv is None:
+        rows = [ln for ln in text.split("\n") if "|" in ln and re.match(r"\s*(?:" + rx + r")\b", ln, re.I)]
+        if rows:
+            m = re.search(r"\|\s*<?\s*(\d+(?:[.,]\d+)?)\s*(mg|g|µg)\b", rows[0], re.I)
+            if m:
+                tv = (float(m.group(1).replace(",", ".")), m.group(2).lower(), rows[0])
+    if tv is None:
+        m = re.search(r"(\d+(?:[.,]\d+)?)\s*(mg|g)\s*(?:de\s+|d['’])?(?:" + rx + r")\b", text, re.I)
+        if m:
+            tv = (float(m.group(1).replace(",", ".")), m.group(2).lower(), m.group(0))
+    if tv is None or tv[1] not in ("mg", "g"):
+        return None
+    return tv[0], tv[1]
+
+
+def preworkout_profile(text: str) -> Optional[dict]:
+    """{actif: {dose, unité, référence, atteinte}} par portion, pour les actifs reconnus présents sur la fiche."""
+    out: dict = {}
+    for key, (rx, unit, ref, label) in PRE_ACTIVES.items():
+        v = _per_serving_value(text, rx)
+        if not v:
+            continue
+        val = v[0] / 1000 if (v[1] == "mg" and unit == "g") else v[0] * 1000 if (v[1] == "g" and unit == "mg") else v[0]
+        if (unit == "mg" and not 10 <= val <= 600) or (unit == "g" and not 0.1 <= val <= 15):
+            continue                                    # valeur pour 100 g ou faute de lecture : on ne l'affiche pas
+        out[key] = {"label": label, "dose": round(val, 2), "unit": unit, "ref": ref, "ok": val >= ref * 0.95}
+    if "citrulline_malate" in out:
+        out.pop("citrulline", None)
+    return out or None
+
+
 def product_details(body_html: str, title: str = "") -> dict:
     text = html_to_text(body_html or "")
     ingr = ingredients(text)
-    return {"ingredients": ingr, "nutrition": nutrition(text) or None, "attributes": attributes(title + "\n" + text, ingr)}
+    att = attributes(title + "\n" + text, ingr)
+    pre = preworkout_profile(text)
+    if pre:
+        att["preworkout"] = pre
+    return {"ingredients": ingr, "nutrition": nutrition(text) or None, "attributes": att}
+
+
+# --------------------------------------------------------------------------- avis : thèmes
+
+TOPICS = {
+    "Goût": r"go[uû]ts?\b|saveurs?|d[ée]licieu|bon go[uû]t|[ée]c(?:œ|oe)urant|chimique|trop sucr|taste|flavou?r",
+    "Mélange": r"m[ée]lang|dissou|dilu|grumeau|soluble|se m[ée]lange|mix|mousse",
+    "Digestion": r"dig[eè]r|digest|ballonn|estomac|ventre|intestin|\bgaz\b|ballon|bloat|lourd",
+    "Texture": r"texture|[ée]pais|onctu|cr[ée]meu|aqueu|consistance",
+    "Efficacité": r"efficac|r[ée]sultats?|r[ée]cup|[ée]nergie|\bpump\b|focus|concentration|force|effets?\b|boost",
+    "Prix": r"\bprix\b|\bcher\b|qualit[ée][- /]prix|rapport qualit|[ée]conomique|value for money",
+    "Emballage et doseur": r"emballage|sachet|\bpot\b|doseur|cuill[eè]re|scoop|bo[iî]te|refermer|zip",
+}
+NEGATIVE = re.compile(r"\bpas (?:tr[eè]s )?(?:bon|top|terrible|efficace|fou)|mauvais|d[ée]cevant|d[ée][çc]u|horrible|imbuvable|"
+                      r"grumeaux|ballonn|[ée]c(?:œ|oe)urant|trop sucr|chimique|infect|bof|moyen\b|cass[ée]|ab[iî]m[ée]", re.I)
+POSITIVE = re.compile(r"excellent|tr[eè]s bon|parfait|\btop\b|super\b|d[ée]licieu|g[ée]nial|au top|impeccable|nickel|"
+                      r"se m[ée]lange (?:tr[eè]s |super )?bien|aucun (?:souci|probl)|recommande", re.I)
+
+
+def _review_list(page: str) -> list[tuple[str, Optional[float]]]:
+    """(texte, note sur 5) des avis présents dans la page : JSON-LD Review, widgets Judge.me et microdonnées."""
+    out: list[tuple[str, Optional[float]]] = []
+    for n in _jsonld_nodes(page):
+        if "Review" in str(n.get("@type", "")) and n.get("reviewBody"):
+            r = n.get("reviewRating") or {}
+            try:
+                note = float(str(r.get("ratingValue")).replace(",", ".")) * 5 / float(str(r.get("bestRating") or 5).replace(",", "."))
+            except (TypeError, ValueError):
+                note = None
+            out.append((html.unescape(str(n["reviewBody"])), note))
+    if True:                                            # toutes les sources sont cumulées puis dédoublonnées
+        for m in re.finditer(r'class="[^"]*jdgm-rev\b[^"]*"[^>]*data-score="(\d)".*?class="[^"]*jdgm-rev__body[^"]*"[^>]*>(.*?)</div>',
+                             page, re.S | re.I):
+            out.append((re.sub(r"<[^>]+>", " ", html.unescape(m.group(2))), float(m.group(1))))
+    if True:                                            # blocs d'avis rendus dans la page (HSN : data-review-id)
+        starts = [m.start() for m in re.finditer(r'data-review-id="', page)]
+        for i, a in enumerate(starts):
+            block = page[a:starts[i + 1] if i + 1 < len(starts) else a + 4000][:4000]
+            text = re.sub(r"\s+", " ", re.sub(r"(?is)<(script|style|svg)[^>]*>.*?</\1>|<[^>]+>", " ", block)).strip()
+            stars = len(re.findall(r'class="[^"]*(?:text-hsn-yellow|star-full|fill-current)[^"]*"', block))
+            out.append((html.unescape(text), float(stars) if 1 <= stars <= 5 else None))
+    if True:
+        for m in re.finditer(r'itemprop="reviewBody"[^>]*>(.*?)</', page, re.S | re.I):
+            out.append((re.sub(r"<[^>]+>", " ", html.unescape(m.group(1))), None))
+    seen, uniq = set(), []
+    for t, note in out:
+        t = re.sub(r"\s+", " ", t).strip()
+        if len(t) >= 8 and t not in seen:
+            seen.add(t)
+            uniq.append((t, note))
+    return uniq[:200]
+
+
+def review_topics(page: str) -> Optional[dict]:
+    """{thème: {mentions, positifs, négatifs}} à partir des avis publiés sur la fiche (au moins 3 mentions par thème)."""
+    reviews = _review_list(page or "")
+    if not reviews:
+        return None
+    stats: dict[str, dict] = {}
+    for text, note in reviews:
+        sentences = re.split(r"(?<=[.!?])\s+|\n", text)
+        for topic, rx in TOPICS.items():
+            hits = [s for s in sentences if re.search(rx, s, re.I)]
+            if not hits:
+                continue
+            st = stats.setdefault(topic, {"mentions": 0, "pos": 0, "neg": 0})
+            st["mentions"] += 1
+            chunk = " ".join(hits)
+            if NEGATIVE.search(chunk) or (note is not None and note <= 2 and not POSITIVE.search(chunk)):
+                st["neg"] += 1
+            elif POSITIVE.search(chunk) or (note is not None and note >= 4):
+                st["pos"] += 1
+    kept = {k: v for k, v in stats.items() if v["mentions"] >= 2}
+    return {"reviews_read": len(reviews), "topics": kept} if kept else None

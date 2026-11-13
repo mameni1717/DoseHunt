@@ -108,6 +108,22 @@ def store_found_codes(engine: Engine, site: Site, found: list, today=None) -> di
     return stats
 
 
+def store_shipping(engine: Engine, site: Site, threshold, free_codes: list, evidence: str = "", today=None) -> None:
+    """Seuil de livraison offerte et codes « livraison offerte » relevés sur le site."""
+    from datetime import date as _date
+    today = today or _date.today()
+    with engine.begin() as conn:
+        if threshold is not None:
+            upsert(conn, db.shipping, {"site_id": site.id, "country": site.country, "free_threshold": threshold},
+                   ["site_id", "country"], update_cols=["free_threshold"])
+        for code in free_codes:
+            upsert(conn, db.promo_codes, {
+                "site_id": site.id, "country": site.country, "code": code, "discount_type": "free_shipping",
+                "value": None, "applies_to": "all", "source": "affiché sur le site (relevé automatique) : livraison offerte",
+                "confidence": AUTO_CONFIDENCE, "last_confirmed": today, "origin": "auto", "evidence": evidence[:300],
+            }, ["site_id", "country", "code"], update_cols=["discount_type", "confidence", "last_confirmed", "source"])
+
+
 def load_db_codes(conn: Connection) -> list[Code]:
     out = []
     for r in conn.execute(select(db.promo_codes)).mappings():
@@ -167,7 +183,9 @@ def _resolve_active(conn: Connection, p: RawProduct, product_id: int, category: 
         return ac
     existing = conn.execute(select(db.product_actives).where(and_(
         db.product_actives.c.product_id == product_id, db.product_actives.c.category == category))).mappings().first()
-    if existing and (existing["status"] == "manual" or (not body_changed and not reextract and existing["status"] == "ok")):
+    stale_rule = existing is not None and existing["status"] == "ok" and existing["basis"] != categories()[category]["basis"]
+    if existing and (existing["status"] == "manual" or (not body_changed and not reextract and not stale_rule
+                                                         and existing["status"] == "ok")):
         return ActiveContent(category, existing["active"], existing["amount"], existing["unit"], existing["basis"],
                              existing["source"], existing["confidence"], existing["evidence"] or "",
                              existing["units_per_dose"], existing["salt_label_mg"], existing["form"], existing["note"])
@@ -255,7 +273,7 @@ def _format_from_text(fmt: Format, p: RawProduct, basis: str, category: str, n_v
     if fmt.months is not None:
         return fmt
     text = extract.html_to_text(p.body_html or "")
-    if basis == "per_100g" and fmt.total_grams is None:
+    if basis in ("per_100g", "per_serving") and fmt.total_grams is None:
         size = extract.serving_size(text)
         if fmt.total_units and fmt.unit_word in ("dose", "stick", None) and size:
             fmt.grams, fmt.units, fmt.unit_word = round(fmt.total_units * size, 1), None, None
@@ -430,6 +448,12 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
     # Ingrédients, valeurs nutritionnelles, attributs : relus à chaque passage, après la lecture éventuelle de la page (simple lecture du texte déjà relevé),
     # pour profiter tout de suite d'une règle améliorée sans attendre que la fiche change.
     vals = product_details(p.body_html, p.title)
+    page_for_reviews = p.page_html or getattr(fetch_page, "cache", {}).get(p.url) or ""
+    if not page_for_reviews and p.source == "shopify_json" and fetch_page is not None and (prev is None or body_changed):
+        page_for_reviews = fetch_page(p.url) or ""         # avis Shopify : seulement dans la page, lue une fois
+    if page_for_reviews:
+        from .details import review_topics
+        vals["review_topics"] = review_topics(page_for_reviews)
     if p.image_url or p.rating is not None:
         vals.update({k: v for k, v in {"image_url": p.image_url, "rating": p.rating, "review_count": p.review_count}.items() if v is not None})
     conn.execute(update(db.products).where(db.products.c.id == product_id).values(**vals))

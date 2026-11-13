@@ -34,8 +34,8 @@ export const CATEGORIES: Category[] = [
   },
   {
     id: "preworkout", label: "Pré-workout", short: "Pré-workout", group: "main", defaultMode: "dose",
-    modes: { dose: { label: "Prix pour 100 mg de caféine", unit: "€/100 mg caf.", short: "€/100 mg caféine" }, kg },
-    activeName: "caféine", activeShare: "Caféine pour 100 g", filters: ["sweetener", "sucralose"],
+    modes: { dose: { label: "Prix par portion", unit: "€/portion", short: "€/portion" }, kg },
+    activeName: "portion", activeShare: "Portion recommandée", filters: ["sweetener", "sucralose"],
   },
   {
     id: "collagene", label: "Collagène", short: "Collagène", group: "main", defaultMode: "dose",
@@ -120,6 +120,7 @@ export function activeLabel(cat: string, amount: number | null, unit: string | n
   if (amount == null) return "teneur inconnue";
   const c = CATEGORY_BY_ID[cat];
   const n = amount.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
+  if (basis === "per_serving") return `${n} g par portion`;
   if (basis === "per_100g" && unit === "g") return `${n} %`;
   if (basis === "per_100g") return `${n} ${unit} pour 100 g`;
   return `${n} ${unit} de ${c?.activeName ?? "actif"} par unité`;

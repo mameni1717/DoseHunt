@@ -151,6 +151,13 @@ def parse_refresh(data: dict) -> tuple[Optional[float], Optional[float], Optiona
 
 
 class PrestaShopCollector(Collector):
+    _rayon_meta: dict = {}
+
+    @staticmethod
+    def _tag(product, url, rayons):
+        product.rayon_categories = sorted(rayons.get(url, ()))
+        return product
+
     platform = "prestashop"
 
     # -- découverte -------------------------------------------------------
@@ -167,36 +174,43 @@ class PrestaShopCollector(Collector):
         links = [l for l in dict.fromkeys(links) if kw.search(l.rsplit("/", 1)[-1])]
         return links[:60]
 
+    def listing(self, cat: str) -> dict[str, dict]:
+        """Produits d'un rayon PrestaShop, par son listing JSON (pages suivantes comprises)."""
+        found: dict[str, dict] = {}
+        for page in range(1, MAX_CATEGORY_PAGES + 1):
+            sep = "&" if "?" in cat else "?"
+            url = f"{cat}{sep}resultsPerPage=500&page={page}"
+            if not self.client.allowed(url):
+                url = f"{cat}{sep}page={page}"          # Fitadium : seul « ?page= » est autorisé
+            try:
+                resp = self.client.get(url, headers=XHR, accept_404=True)
+            except FetchError as exc:
+                log.warning("%s : listing ignoré %s (%s)", self.site.id, cat, exc)
+                break
+            if resp is None or "json" not in resp.headers.get("content-type", ""):
+                break
+            data = resp.json()
+            for p in data.get("products") or []:
+                link = (p.get("canonical_url") or p.get("url") or "").split("#")[0]
+                if link and link not in found:
+                    found[link] = {"id": str(p.get("id_product")), "name": p.get("name") or "",
+                                   "description_short": p.get("description_short") or "",
+                                   "category": p.get("category_name") or "", "brand": p.get("manufacturer_name"),
+                                   "price": to_price(p.get("price_amount")),
+                                   "regular": to_price(p.get("regular_price_amount")),
+                                   "image": ((p.get("cover") or {}).get("large") or {}).get("url")
+                                            or ((p.get("cover") or {}).get("bySize") or {}).get("home_default", {}).get("url")}
+            pag = data.get("pagination") or {}
+            if page >= int(pag.get("pages_count") or 1):
+                break
+        return found
+
     def discover(self) -> dict[str, dict]:
         """{url_de_fiche: {id, name, category, brand, price, regular}}"""
         found: dict[str, dict] = {}
         for cat in self.listing_urls():
-            for page in range(1, MAX_CATEGORY_PAGES + 1):
-                sep = "&" if "?" in cat else "?"
-                url = f"{cat}{sep}resultsPerPage=500&page={page}"
-                if not self.client.allowed(url):
-                    url = f"{cat}{sep}page={page}"          # Fitadium : seul « ?page= » est autorisé
-                try:
-                    resp = self.client.get(url, headers=XHR, accept_404=True)
-                except FetchError as exc:
-                    log.warning("%s : listing ignoré %s (%s)", self.site.id, cat, exc)
-                    break
-                if resp is None or "json" not in resp.headers.get("content-type", ""):
-                    break
-                data = resp.json()
-                for p in data.get("products") or []:
-                    link = (p.get("canonical_url") or p.get("url") or "").split("#")[0]
-                    if link and link not in found:
-                        found[link] = {"id": str(p.get("id_product")), "name": p.get("name") or "",
-                                       "description_short": p.get("description_short") or "",
-                                       "category": p.get("category_name") or "", "brand": p.get("manufacturer_name"),
-                                       "price": to_price(p.get("price_amount")),
-                                       "regular": to_price(p.get("regular_price_amount")),
-                                       "image": ((p.get("cover") or {}).get("large") or {}).get("url")
-                                                or ((p.get("cover") or {}).get("bySize") or {}).get("home_default", {}).get("url")}
-                pag = data.get("pagination") or {}
-                if page >= int(pag.get("pages_count") or 1):
-                    break
+            for link, meta in self.listing(cat).items():
+                found.setdefault(link, meta)
         pattern = (self.site.filters or {}).get("sitemap_product_pattern")
         if pattern:
             for link in self._sitemap_links(re.compile(pattern)):
@@ -256,6 +270,7 @@ class PrestaShopCollector(Collector):
         groups = variant_groups(page)
         variants = self._variants(url, idp, page, groups, node, meta)
         return RawProduct(
+            page_html=page,
             site_id=self.site.id, external_id=str(idp), handle=url.rstrip("/").rsplit("/", 1)[-1],
             title=title, url=url, vendor=brand or meta.get("brand"),
             product_type=meta.get("category") or node.get("category"), body_html=body,
@@ -314,7 +329,12 @@ class PrestaShopCollector(Collector):
 
     def iter_products(self) -> Iterator[RawProduct]:
         catalogue = {u: {} for u in self.only_urls} if self.only_urls is not None else self.discover()
-        scoped = catalogue if self.only_urls is not None else {u: m for u, m in catalogue.items() if self._in_scope(m)}
+        from ..rayons import rayon_map
+        rayons = rayon_map(self) if self.only_urls is None else {}
+        for link in rayons:
+            catalogue.setdefault(link, self._rayon_meta.get(link, {}))
+        scoped = catalogue if self.only_urls is not None else {u: m for u, m in catalogue.items()
+                                                               if u in rayons or self._in_scope(m)}
         log.info("%s : %d fiches trouvées, %d dans nos catégories", self.site.id, len(catalogue), len(scoped))
         self.catalogue_size = len(catalogue)
         refused = 0
@@ -322,7 +342,7 @@ class PrestaShopCollector(Collector):
             if refused >= 3:                      # le site refuse ses fiches à notre robot : listing seul
                 product = self.listing_product(url, meta)
                 if product:
-                    yield product
+                    yield self._tag(product, url, rayons)
                 continue
             try:
                 product = self.fetch_product(url, meta)
@@ -334,12 +354,12 @@ class PrestaShopCollector(Collector):
                                     "(teneurs depuis config/manual_actives.yaml)", self.site.id)
                     product = self.listing_product(url, meta)
                     if product:
-                        yield product
+                        yield self._tag(product, url, rayons)
                     continue
                 log.warning("%s : fiche ignorée %s (%s)", self.site.id, url, exc)
                 continue
             if product and product.variants:
-                yield product
+                yield self._tag(product, url, rayons)
 
     def listing_product(self, url: str, meta: dict) -> Optional[RawProduct]:
         """Produit construit depuis le listing JSON (autorisé), quand la fiche est refusée. Sans teneur saisie à la

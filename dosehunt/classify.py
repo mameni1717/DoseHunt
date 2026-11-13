@@ -85,6 +85,21 @@ def classify(p: RawProduct, site: Optional[Site] = None) -> list[Classification]
             sub = next((k for k, rs in rx["subs"].items() if rs and any(r.search(title_type) for r in rs)), None)
             sub = sub or next((k for k, rs in rx["subs"].items() if not rs), None)
         found.append(Classification(cid, sub))
+    # Nom muet (« Evobomb », « Animal Fury ») : la catégorie du rayon du marchand, si le nom ne la contredit pas.
+    if not found and p.rayon_categories:
+        compiled = _compiled()
+        for cid in p.rayon_categories:
+            rx = compiled.get(cid)
+            if rx is None or any(r.search(p.title) for r in rx["exclude"]):
+                continue
+            if cid == "barres" and not any(r.search(haystack) for r in rx["require_any"]):
+                continue                                    # rayon « barres, boissons et gels » : pas une barre sans le mot
+            sub = None
+            if rx["subs"]:
+                title_type = p.title + " " + (p.product_type or "")
+                sub = next((k for k, rs in rx["subs"].items() if rs and any(r.search(title_type) for r in rs)), None)
+                sub = sub or next((k for k, rs in rx["subs"].items() if not rs), None)
+            found.append(Classification(cid, sub))
     # Une barre protéinée n'est pas aussi une whey, même si « whey » figure dans son nom.
     ids = {c.category for c in found}
     if "barres" in ids:
