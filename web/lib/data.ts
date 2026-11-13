@@ -4,7 +4,8 @@ import { rerank, type Attributes, type IndexRow, type RankOptions, type Ranked }
 
 export interface Nutrition { energy_kcal?: number; fat?: number; saturated?: number; carbs?: number; sugars?: number; fibre?: number; protein?: number; salt?: number }
 import { currentCountry } from "./country.ts";
-import { brandKey } from "./group.ts";
+import { brandKey, flavourWords, norm } from "./group.ts";
+import { productKey } from "./optimize.ts";
 import { CATEGORY_BY_ID } from "./categories.ts";
 
 const COUNTRY = currentCountry().code;
@@ -227,4 +228,32 @@ export async function getCompare(ids: number[], cat?: string): Promise<CompareIt
     if (best) out.push({ row: best, ingredients: byId.get(id)?.ingredients ?? null, nutrition: byId.get(id)?.nutrition ?? null });
   }
   return out;
+}
+
+/** « Optimiser mes achats » : offres en stock des catégories demandées, codes et seuils de livraison offerte. */
+export async function getOptimizerData(cats: string[]): Promise<{ rows: IndexRow[]; codes: PromoCode[]; shipping: Map<string, number | null> }> {
+  const [rows, codes, ship] = await Promise.all([
+    q<IndexRow>(ROW_SELECT + ` and i.category = any($2::text[]) and o.available`, [COUNTRY, cats]),
+    getCodes(),
+    q<{ site_id: string; free_threshold: number | null }>(`select site_id, free_threshold from shipping where country = $1`, [COUNTRY]).catch(() => []),
+  ]);
+  return { rows, codes, shipping: new Map(ship.map((s) => [s.site_id, s.free_threshold != null ? Number(s.free_threshold) : null])) };
+}
+
+/** Recherche d'un produit à épingler : une ligne par produit (clé indépendante du marchand). */
+export async function searchPinnable(cat: string, text: string): Promise<{ key: string; label: string; sites: number }[]> {
+  const words = norm(text).split(/[^a-z0-9%]+/).filter((w) => w.length >= 2);
+  if (!words.length) return [];
+  const rows = await q<IndexRow>(ROW_SELECT + ` and i.category = $2 and o.available`, [COUNTRY, cat]);
+  const flavours = flavourWords(rows.map((r) => r.flavour));
+  const out = new Map<string, { key: string; label: string; sites: Set<string> }>();
+  for (const r of rows) {
+    if (!words.every((w) => norm(`${r.brand ?? ""} ${r.name}`).includes(w))) continue;
+    const key = productKey(r, flavours);
+    const g = out.get(key) ?? { key, label: `${r.brand ? r.brand + " · " : ""}${r.name}`, sites: new Set<string>() };
+    g.sites.add(r.site_id);
+    out.set(key, g);
+  }
+  return [...out.values()].sort((a, b) => b.sites.size - a.sites.size).slice(0, 12)
+    .map((g) => ({ key: g.key, label: g.label, sites: g.sites.size }));
 }
