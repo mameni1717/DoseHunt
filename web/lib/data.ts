@@ -21,7 +21,8 @@ const ROW_SELECT = `
     join products p on p.id = o.product_id
     join sites s on s.id = o.site_id
     join product_actives a on a.product_id = p.id and a.category = i.category
-   where i.country = $1 and o.active and p.active`;   // ruptures incluses : affichées en grisé, en fin de liste
+   where i.country = $1 and o.active and p.active
+     and (i.category <> 'preworkout' or a.basis = 'per_serving')`;   // anciens relevés à la caféine écartés   // ruptures incluses : affichées en grisé, en fin de liste
 
 export interface Filters {
   sub?: string;
