@@ -78,9 +78,19 @@ def cmd_codes(args):
     engine = _engine(args)
     seed(engine)
     targets = [get_site(s) for s in args.site] if args.site else [s for s in sites().values() if s.status == "active"]
+    from .codes import collect_site_shipping
+    from .pipeline import store_shipping
     for site in targets:
         found = collect_site_codes(site)
         st = store_found_codes(engine, site, found)
+        try:
+            th, free_codes, ev = collect_site_shipping(site)
+            th = th if th is not None else (site.filters or {}).get("free_shipping_from")
+            store_shipping(engine, site, th, free_codes, ev)
+            print(f"{site.name:<20} livraison offerte : {'dès ' + format(th, 'g') + ' €' if th else 'seuil non trouvé'}"
+                  f"{' ; codes ' + ', '.join(free_codes) if free_codes else ''}")
+        except Exception as exc:                         # noqa: BLE001
+            print(f"{site.name:<20} livraison : lecture impossible ({exc})")
         desc = ", ".join(f"{f.code} ({'/'.join(str(t['pct']) + '%' + (' dès ' + str(int(t['min'])) + '€' if t['min'] else '') for t in f.tiers)})"
                          for f in found) or "aucun"
         print(f"{site.name:<20} {desc}  [{st['new']} nouveau(x), {st['confirmed']} confirmé(s)]")
@@ -98,6 +108,41 @@ def cmd_sites_json(args):
     import json
     print(json.dumps([k for k, v in sites().items() if v.status == "active"
                       or (v.status == "needs_feed" and os.environ.get((v.filters or {}).get("feed_env", "")))]))
+
+
+def cmd_gaps(args):
+    """Rayons du marchand vs produits classés chez nous : ce qui manque, par site et par catégorie."""
+    from sqlalchemy import select, and_
+    from .collectors import collector_for
+    from .rayons import rayon_map
+    from . import db as _db
+    engine = _engine(args)
+    targets = [get_site(s) for s in args.site] if args.site else [s for s in sites().values() if s.status == "active"]
+    for site in targets:
+        try:
+            rmap = rayon_map(collector_for(site))
+        except Exception as exc:                         # noqa: BLE001
+            print(f"{site.name:<20} rayons illisibles ({exc})")
+            continue
+        with engine.connect() as conn:
+            rows = conn.execute(select(_db.products.c.url, _db.products.c.external_id, _db.product_actives.c.category,
+                                       _db.product_actives.c.status)
+                                .select_from(_db.products.join(_db.product_actives, _db.product_actives.c.product_id == _db.products.c.id))
+                                .where(and_(_db.products.c.site_id == site.id, _db.products.c.active.is_(True)))).all()
+        have = {}
+        for r in rows:
+            for key in (r.url.split("?")[0] if r.url else "", r.external_id):
+                have.setdefault((key, r.category), r.status)
+        per_cat: dict[str, list] = {}
+        for key, cats in rmap.items():
+            for c in cats:
+                per_cat.setdefault(c, []).append(key)
+        for c, keys in sorted(per_cat.items()):
+            ok = sum(1 for k in keys if have.get((k, c)) == "ok")
+            review = sum(1 for k in keys if have.get((k, c)) == "review")
+            missing = [k for k in keys if (k, c) not in have]
+            print(f"{site.name:<20} {c:<11} rayon {len(keys):>4}  classés {ok:>4}  à vérifier {review:>4}  absents {len(missing):>4}"
+                  + (f"  ex. {missing[0]}" if missing else ""))
 
 
 def cmd_demo(args):
@@ -215,6 +260,9 @@ def main(argv=None):
     k.set_defaults(func=cmd_codes)
     sub.add_parser("recompute").set_defaults(func=cmd_recompute)
     sub.add_parser("alerts", help="envoie les alertes prix (e-mails) après une collecte").set_defaults(func=cmd_alerts)
+    g = sub.add_parser("gaps", help="compare les rayons des marchands aux produits classés (ce qui manque)")
+    g.add_argument("--site", action="append")
+    g.set_defaults(func=cmd_gaps)
     sub.add_parser("sites-json", help="liste JSON des sites à collecter (matrice GitHub Actions)").set_defaults(func=cmd_sites_json)
     sub.add_parser("push-neon", help="copie la base locale vers Neon par HTTPS (remplacement complet)").set_defaults(func=cmd_push_neon)
     sub.add_parser("demo", help="charge le jeu de démonstration (relevé du prototype, 11/11/2026)").set_defaults(func=cmd_demo)

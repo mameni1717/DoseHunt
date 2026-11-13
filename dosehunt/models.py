@@ -50,6 +50,8 @@ class RawProduct:
     image_url: Optional[str] = None         # photo principale
     rating: Optional[float] = None          # note moyenne des avis, ramenée sur 5
     review_count: Optional[int] = None
+    rayon_categories: list[str] = field(default_factory=list)   # catégories des rayons du marchand où il figure
+    page_html: str = ""                     # page produit lue (avis, profil des pré-workouts) ; jamais stockée
 
 
 @dataclass

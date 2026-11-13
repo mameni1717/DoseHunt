@@ -1,0 +1,326 @@
+# Rayons des marchands par catégorie DoseHunt : détectés dans les menus (dosehunt rayons-detect), puis relus.
+# Un produit trouvé dans un de ces rayons prend la catégorie du rayon quand son nom ne suffit pas à le classer.
+amnutrition:
+  collagene:
+  - https://www.amnutrition.fr/collections/collagene
+  creatine:
+  - https://www.amnutrition.fr/collections/creatine
+  omega3:
+  - https://www.amnutrition.fr/collections/nos-omega-3
+  preworkout:
+  - https://www.amnutrition.fr/collections/pre-workout
+  whey:
+  - https://www.amnutrition.fr/collections/whey-proteines
+biotechusa:
+  barres:
+  - https://shop.biotechusa.fr/collections/barres-boissons
+  collagene:
+  - https://shop.biotechusa.fr/collections/collagen
+  creatine:
+  - https://shop.biotechusa.fr/collections/creatines
+bodyandfit:
+  barres:
+  - https://www.bodyandfit.com/fr-fr/collections/protein-bars
+  - https://www.bodyandfit.com/fr-fr/collections/vegan-eiwitrepen
+  collagene:
+  - https://www.bodyandfit.com/fr-fr/collections/collagen
+  creatine:
+  - https://www.bodyandfit.com/fr-fr/collections/creatine-and-performance
+  - https://www.bodyandfit.com/fr-fr/collections/creatine-powder
+  - https://www.bodyandfit.com/fr-fr/collections/creatine-capsules
+  - https://www.bodyandfit.com/fr-fr/collections/creatine-blends
+  glutamine:
+  - https://www.bodyandfit.com/fr-fr/collections/glutamine
+  magnesium:
+  - https://www.bodyandfit.com/fr-fr/collections/magesium
+  omega3:
+  - https://www.bodyandfit.com/fr-fr/collections/omega
+  preworkout:
+  - https://www.bodyandfit.com/fr-fr/collections/pre-workout
+  whey:
+  - https://www.bodyandfit.com/fr-fr/collections/whey-protein
+  - https://www.bodyandfit.com/fr-fr/collections/whey-isolate
+  - https://www.bodyandfit.com/fr-fr/collections/casein-protein
+  zinc:
+  - https://www.bodyandfit.com/fr-fr/collections/zinc
+bulk:
+  barres:
+  - https://www.bulk.com/fr/proteine/barres-proteinees
+  - https://www.bulk.com/fr/vegan/barres-proteinees-vegan
+  collagene:
+  - https://www.bulk.com/fr/proteine/collagene
+  creatine:
+  - https://www.bulk.com/fr/nutrition-sportive/creatine
+  glutamine:
+  - https://www.bulk.com/fr/nutrition-sportive/acides-amines/glutamine-poudre
+  magnesium:
+  - https://www.bulk.com/fr/vitamins/mineraux/magnesium
+  omega3:
+  - https://www.bulk.com/fr/sante-et-bien-etre/huile-de-poissons
+  - https://www.bulk.com/fr/sante-et-bien-etre/omega-3
+  preworkout:
+  - https://www.bulk.com/fr/nutrition-sportive/pre-entrainement
+  vitamine_c:
+  - https://www.bulk.com/fr/vitamins/vitamine-c
+  vitamine_d:
+  - https://www.bulk.com/fr/vitamins/vitamine-d
+  whey:
+  - https://www.bulk.com/fr/proteine/proteine-whey
+  - https://www.bulk.com/fr/proteine/proteine-vegetalienne
+  - https://www.bulk.com/fr/vegan/proteine-vegan-en-poudre
+  - https://www.bulk.com/fr/proteine/proteine-transparente
+  zinc:
+  - https://www.bulk.com/fr/vitamins/mineraux/zinc
+eafit:
+  barres:
+  - https://www.eafit.com/nos-produits/proteines/barres.html
+  collagene:
+  - https://www.eafit.com/sante/actifs/collagene.html
+  creatine:
+  - https://www.eafit.com/nos-produits/energie/creatine.html
+  glutamine:
+  - https://www.eafit.com/nos-produits/recuperation/bcaa-glutamine.html
+  magnesium:
+  - https://www.eafit.com/sante/mineraux/magnesium.html
+  omega3:
+  - https://www.eafit.com/sante/actifs/omega-3.html
+  preworkout:
+  - https://www.eafit.com/nos-produits/energie/boosters.html
+  vitamine_c:
+  - https://www.eafit.com/sante/vitamines/c.html
+  whey:
+  - https://www.eafit.com/nos-produits/proteines/whey.html
+  - https://www.eafit.com/nos-produits/proteines/caseine.html
+  - https://www.eafit.com/nos-produits/proteines/proteines-vegetales.html
+  zinc:
+  - https://www.eafit.com/sante/mineraux/zinc.html
+ericfavre:
+  barres:
+  - https://www.ericfavre.com/fr_fr/barres-proteinees-c-15.htm
+  creatine:
+  - https://www.ericfavre.com/fr_fr/creatine-c-76.htm
+  magnesium:
+  - https://www.ericfavre.com/fr_fr/bien-etre-general/les-essentiels-sante-p-1037.htm
+  omega3:
+  - https://www.ericfavre.com/fr_fr/bien-etre-general/les-essentiels-sante-p-1037.htm
+  preworkout:
+  - https://www.ericfavre.com/fr_fr/boosters-pre-work-out-c-13.htm
+fitadium:
+  barres:
+  - https://www.fitadium.com/5-barres-proteinees
+  collagene:
+  - https://www.fitadium.com/635-collagene
+  creatine:
+  - https://www.fitadium.com/7-creatines
+  glutamine:
+  - https://www.fitadium.com/431-glutamine
+  magnesium:
+  - https://www.fitadium.com/556-magnesium
+  omega3:
+  - https://www.fitadium.com/412-omega-3
+  - https://www.fitadium.com/630-huile-de-poisson
+  preworkout:
+  - https://www.fitadium.com/8-preworkout
+  vitamine_c:
+  - https://www.fitadium.com/555-vitamine-c
+  vitamine_d:
+  - https://www.fitadium.com/625-vitamine-d
+  whey:
+  - https://www.fitadium.com/424-whey-proteine
+  - https://www.fitadium.com/425-whey-isolate
+  - https://www.fitadium.com/602-whey-hydrolysee
+  - https://www.fitadium.com/603-whey-complex
+  zinc:
+  - https://www.fitadium.com/628-zinc
+fitnessboutique:
+  collagene:
+  - https://www.fitnessboutique.fr/collections/collagene
+  creatine:
+  - https://www.fitnessboutique.fr/collections/creatine
+  - https://www.fitnessboutique.fr/collections/creatine-monohydrate
+  - https://www.fitnessboutique.fr/collections/creatine-kre-alkalyn
+  omega3:
+  - https://www.fitnessboutique.fr/collections/omega-3
+  preworkout:
+  - https://www.fitnessboutique.fr/collections/pre-workout
+  - https://www.fitnessboutique.fr/collections/pre-entrainement
+  whey:
+  - https://www.fitnessboutique.fr/collections/whey-proteine
+  - https://www.fitnessboutique.fr/collections/whey
+  - https://www.fitnessboutique.fr/collections/whey-proteine-native
+  - https://www.fitnessboutique.fr/collections/whey-proteine-isolate
+greenwhey:
+  barres:
+  - https://greenwhey.com/products/barre-proteinee-bio
+  collagene:
+  - https://greenwhey.com/products/peptides-de-collagene-peptan
+  - https://greenwhey.com/products/peptides-de-collagene-marin-peptan
+  creatine:
+  - https://greenwhey.com/products/creatine-creapure
+  glutamine:
+  - https://greenwhey.com/products/l-glutamine
+  magnesium:
+  - https://greenwhey.com/products/complexe-de-magnesium
+  omega3:
+  - https://greenwhey.com/products/omega-3-epax
+  preworkout:
+  - https://greenwhey.com/products/pre-workout
+  vitamine_c:
+  - https://greenwhey.com/products/vitamine-c-en-poudre
+  - https://greenwhey.com/products/vitamine-c-liposomale
+  vitamine_d:
+  - https://greenwhey.com/products/vitamine-d3
+  whey:
+  - https://greenwhey.com/products/isolat-de-whey-native-100-bio
+  - https://greenwhey.com/products/isolat-de-caseine-bio-micellaire
+  - https://greenwhey.com/products/isolat-de-clear-whey
+  - https://greenwhey.com/products/proteine-de-whey-bio
+  zinc:
+  - https://greenwhey.com/products/zinc-bisglycinate
+hsn:
+  barres:
+  - https://www.hsnstore.fr/nutrition-sportive/barres/proteines
+  collagene:
+  - https://www.hsnstore.fr/ingredients/collagene
+  creatine:
+  - https://www.hsnstore.fr/nutrition-sportive/creatine
+  glutamine:
+  - https://www.hsnstore.fr/nutrition-sportive/acides-amines/glutamine
+  magnesium:
+  - https://www.hsnstore.fr/ingredients/magnesium
+  omega3:
+  - https://www.hsnstore.fr/ingredients/omega-3
+  preworkout:
+  - https://www.hsnstore.fr/nutrition-sportive/pre-entrainement
+  vitamine_c:
+  - https://www.hsnstore.fr/ingredients/vitamine-c
+  vitamine_d:
+  - https://www.hsnstore.fr/ingredients/vitamine-d
+  whey:
+  - https://www.hsnstore.fr/nutrition-sportive/proteines/caseines
+  - https://www.hsnstore.fr/nutrition-sportive/proteines/vegetales
+  - https://www.hsnstore.fr/nutrition-sportive/proteines/whey
+  zinc:
+  - https://www.hsnstore.fr/ingredients/zinc
+myprotein:
+  barres:
+  - https://fr.myprotein.com/c/nutrition/healthy-food-drinks/protein-bars
+  - https://fr.myprotein.com/c/nutrition/vegetarian-protein-bars
+  collagene:
+  - https://fr.myprotein.com/c/nutrition/collagen
+  creatine:
+  - https://fr.myprotein.com/c/nutrition/creatine
+  - https://fr.myprotein.com/c/nutrition/creatine/creatine-monohydrate
+  glutamine:
+  - https://fr.myprotein.com/c/nutrition/amino-acids/glutamine
+  magnesium:
+  - https://fr.myprotein.com/c/nutrition/vitamins-minerals/magnesium-supplements
+  omega3:
+  - https://fr.myprotein.com/c/ranges/myvitamins/omega-3
+  preworkout:
+  - https://fr.myprotein.com/c/nutrition/pre-post-workout/pre-workout
+  - https://fr.myprotein.com/c/nutrition/caffeine-free-preworkout
+  whey:
+  - https://fr.myprotein.com/c/nutrition/protein/whey-protein
+  zinc:
+  - https://fr.myprotein.com/c/nutrition/vitamins-minerals/zinc-supplements
+nu3:
+  collagene:
+  - https://www.redcare-pharmacie.fr/search.htm
+  magnesium:
+  - https://www.redcare-pharmacie.fr/magnesium
+  - https://www.redcare-pharmacie.fr/search.htm
+  vitamine_d:
+  - https://www.redcare-pharmacie.fr/search.htm
+nutriandco:
+  collagene:
+  - https://nutriandco.com/fr/produits/collagene
+  - https://nutriandco.com/fr/produits/tripeptide-de-collagene
+  creatine:
+  - https://nutriandco.com/fr/produits/creatine
+  glutamine:
+  - https://nutriandco.com/fr/produits/l-glutamine
+  magnesium:
+  - https://nutriandco.com/fr/produits/magnesium
+  omega3:
+  - https://nutriandco.com/fr/produits/omega-3
+  preworkout:
+  - https://nutriandco.com/fr/produits/pre-workout
+  vitamine_c:
+  - https://nutriandco.com/fr/produits/vitamine-c
+  - https://nutriandco.com/fr/produits/vitamine-c-liposomale
+  vitamine_d:
+  - https://nutriandco.com/fr/produits/vitamine-d-lanoline
+  - https://nutriandco.com/fr/produits/vitamine-d
+  whey:
+  - https://nutriandco.com/fr/produits/whey-isolate-native
+  - https://nutriandco.com/fr/produits/whey-native
+  - https://nutriandco.com/fr/produits/proteine-vegetale
+  - https://nutriandco.com/fr/whey-proteine
+  zinc:
+  - https://nutriandco.com/fr/produits/zinc
+nutrimea:
+  collagene:
+  - https://www.nutrimea.com/fr-fr/collections/collagene
+  creatine:
+  - https://www.nutrimea.com/fr-fr/collections/creatines
+  preworkout:
+  - https://www.nutrimea.com/fr-fr/collections/booster
+optigura:
+  barres:
+  - https://www.optigura.fr/store/barres-proteinees
+  collagene:
+  - https://www.optigura.fr/store/collagene
+  creatine:
+  - https://www.optigura.fr/store/creatines
+  preworkout:
+  - https://www.optigura.fr/store/boosters-pour-la-musculation
+  whey:
+  - https://www.optigura.fr/store/whey-proteines
+  - https://www.optigura.fr/store/whey-isolate
+raptor:
+  whey:
+  - https://raptornutrition.fr/collections/whey
+stc: {}
+toutelanutrition:
+  barres:
+  - https://www.toutelanutrition.com/collections/barres-proteinees
+  collagene:
+  - https://www.toutelanutrition.com/collections/collagene
+  creatine:
+  - https://www.toutelanutrition.com/collections/creatine
+  glutamine:
+  - https://www.toutelanutrition.com/collections/glutamine
+  omega3:
+  - https://www.toutelanutrition.com/collections/omega-3
+  preworkout:
+  - https://www.toutelanutrition.com/collections/pre-workout
+  whey:
+  - https://www.toutelanutrition.com/collections/whey
+  - https://www.toutelanutrition.com/collections/caseine
+  - https://www.toutelanutrition.com/collections/proteines-vegetales
+zumub:
+  barres:
+  - https://www.zumub.com/FR/barres-boissons-et-gels
+  - https://www.zumub.com/FR/-c-598
+  collagene:
+  - https://www.zumub.com/FR/-c-411
+  creatine:
+  - https://www.zumub.com/FR/creatine
+  - https://www.zumub.com/FR/creatine-monohydrate-de-creatine-c-213_165_74
+  glutamine:
+  - https://www.zumub.com/FR/glutamine
+  magnesium:
+  - https://www.zumub.com/FR/magnesium
+  omega3:
+  - https://www.zumub.com/FR/sante-et-bien-etre/omega-6
+  - https://www.zumub.com/FR/-c-400
+  preworkout:
+  - https://www.zumub.com/FR/formules-pre-entrainement
+  vitamine_c:
+  - https://www.zumub.com/FR/vitamine-c
+  vitamine_d:
+  - https://www.zumub.com/FR/vitamine-d
+  whey:
+  - https://www.zumub.com/FR/proteine-de-caseine
+  - https://www.zumub.com/FR/proteines/proteines-vegetales

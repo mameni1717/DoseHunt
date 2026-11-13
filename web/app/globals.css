@@ -205,3 +205,14 @@ details.more .row { margin-top: 10px; }
 .cmp thead th, .cmp tbody th { font: 600 13px/1.3 var(--body); text-transform: none; letter-spacing: 0; color: var(--ink); }
 .cmp thead th a { text-decoration: none; }
 .filter.grow { flex: 1; min-width: 220px; padding: 8px 10px; font: 15px var(--body); border: 1px solid var(--line); border-radius: 6px; background: var(--card); color: var(--ink); }
+.chip.good { background: #e8f6ee; color: #11683a; border-color: #b6e2c6; }
+.subline { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.pre { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; margin-top: 6px; }
+.pre .ok { color: #11683a; font-weight: 600; }
+.pre .low { color: var(--warn); }
+.pre small { color: var(--muted); font-weight: 400; }
+.topics { display: grid; gap: 8px; }
+.topic { display: grid; grid-template-columns: 150px 1fr 120px; gap: 10px; align-items: center; font-size: 14px; }
+.topic .bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; display: flex; }
+.topic .bar i { background: #2e9e5b; } .topic .bar b { background: var(--warn); }
+@media (max-width: 640px) { .topic { grid-template-columns: 1fr; } }

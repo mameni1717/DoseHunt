@@ -75,6 +75,7 @@ products = Table(                # ce que contient le produit, tel que vendu par
     Column("ingredients", Text),                        # liste d'ingrédients lue sur la fiche
     Column("nutrition", JSON),                          # valeurs pour 100 g {protein, fat, sugars, salt…}
     Column("attributes", JSON),                         # sans lactose, édulcorants, origine du lait… (filtres)
+    Column("review_topics", JSON),                      # thèmes des avis publiés sur la fiche (goût, mélange…)
     Column("tags", JSON),
     Column("first_seen", DateTime(timezone=True)),
     Column("last_seen", DateTime(timezone=True)),
@@ -251,7 +252,7 @@ LATE_COLUMNS = {"promo_codes": {"tiers": "JSON", "origin": "VARCHAR(10)", "evide
                 "products": {"content_hint": "VARCHAR(60)", "origin_country": "VARCHAR(2)",
                              "origin_evidence": "VARCHAR(200)", "image_url": "VARCHAR(500)", "rating": "FLOAT",
                              "review_count": "INTEGER", "ingredients": "TEXT", "nutrition": "JSON",
-                             "attributes": "JSON"}}
+                             "attributes": "JSON", "review_topics": "JSON"}}
 
 
 def init_db(engine: Engine) -> None:

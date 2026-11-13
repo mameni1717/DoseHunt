@@ -1,13 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import "./globals.css";
+import { SITE_URL } from "@/lib/site";
 import { MAIN_CATEGORIES, VITAMINS_GROUP } from "@/lib/categories";
 import { CompareBar } from "@/components/client";
 
 export const metadata: Metadata = {
-  title: { default: "DoseHunt · Le vrai prix de ce que tu avales", template: "%s · DoseHunt" },
+  metadataBase: new URL(SITE_URL),
+  title: { default: "DoseHunt · Comparateur de whey, créatine et compléments au vrai prix", template: "%s · DoseHunt" },
+  alternates: { canonical: "/" },
+  openGraph: { type: "website", locale: "fr_FR", siteName: "DoseHunt", url: SITE_URL },
+  twitter: { card: "summary" },
+  verification: process.env.GOOGLE_SITE_VERIFICATION ? { google: process.env.GOOGLE_SITE_VERIFICATION } : undefined,
   description:
-    "Compare whey, créatine, pré-workout, collagène, barres, vitamines et minéraux au prix réel par gramme d'actif, code promo compris.",
+    "Comparateur indépendant : whey, créatine, pré-workout, collagène, barres, vitamines et minéraux classés au prix réel par gramme d'actif, code promo compris, chez les marchands français.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

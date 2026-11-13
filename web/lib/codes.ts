@@ -66,6 +66,7 @@ export function bestCode(
   let best: Applied | null = null;
   for (const c of codes) {
     if (c.site_id !== siteId) continue;
+    if (c.discount_type === "free_shipping") continue;      // livraison offerte : affichée à part, pas une remise
     if (c.first_order_only && !opts.firstOrder) continue;
     if (onSale && !c.stackable_with_sale) continue;
     if (Array.isArray(c.applies_to) && !c.applies_to.includes(category)) continue;

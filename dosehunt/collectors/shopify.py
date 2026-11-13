@@ -68,6 +68,8 @@ class ShopifyCollector(Collector):
 
     def iter_products(self) -> Iterator[RawProduct]:
         seen: set[str] = set()
+        from ..rayons import rayon_map
+        rayons = rayon_map(self)                         # {identifiant produit : catégories de ses collections}
         for page in range(1, MAX_PAGES + 1):
             url = f"{self.site.root}/products.json?limit={self.site.page_size}&page={page}"
             data = self.client.get_json(url)
@@ -78,7 +80,9 @@ class ShopifyCollector(Collector):
                 if pid in seen:      # certaines boutiques renvoient la dernière page en boucle
                     continue
                 seen.add(pid)
-                yield parse_product(self.site, p)
+                product = parse_product(self.site, p)
+                product.rayon_categories = sorted(rayons.get(pid, ()))
+                yield product
             if len(products) < self.site.page_size:
                 return
         log.warning("%s : arrêt après %d pages", self.site.id, MAX_PAGES)

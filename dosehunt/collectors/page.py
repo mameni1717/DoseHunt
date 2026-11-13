@@ -707,6 +707,9 @@ class PageCollector(Collector):
 
     def iter_products(self) -> Iterator[RawProduct]:
         urls = self.only_urls if self.only_urls is not None else self.discover()
+        from ..rayons import rayon_map
+        self._rayons = rayon_map(self) if self.only_urls is None else {}
+        urls = list(dict.fromkeys(list(urls) + sorted(self._rayons)))   # fiches des rayons, même au nom muet
         log.info("%s : %d fiches à ouvrir", self.site.id, len(urls))
         limit = self.cfg.get("max_products")
         seen_ids: set[str] = set()
@@ -728,6 +731,8 @@ class PageCollector(Collector):
             if product.external_id in seen_ids:         # deux URL pour la même fiche
                 continue
             seen_ids.add(product.external_id)
+            product.rayon_categories = sorted(self._rayons.get(url, ()))
+            product.page_html = resp.text
             yield product
 
 

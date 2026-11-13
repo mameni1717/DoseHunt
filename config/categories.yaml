@@ -143,16 +143,14 @@ categories:
 
   preworkout:
     label: Pré-workout
-    active: caffeine
-    active_unit: mg
-    basis: per_100g
-    range: [300, 8000]         # mg de caféine pour 100 g de poudre
+    active: serving
+    active_unit: g
+    basis: per_serving
+    range_serving: [2, 40]     # g par portion recommandée
     default_mode: dose
-    dose_label: "€/100 mg de caféine"
-    dose_divisor_mg: 100
-    serving_g: 10
+    dose_label: "€/portion"
     include: ['pr[ée][- ]?workout', 'pre[- ]?training', 'pr[ée][- ]?entra[iî]nement', 'booster', '\bpump\b', 'pre[- ]?work']
-    exclude: ['shaker', 'gants?', 'ceinture', 'barre', '\bbar\b', 'serviette', 't-shirt', 'sans caf[ée]ine', 'stim[- ]?free', 'caffeine[- ]free', 'non[- ]stim']
+    exclude: ['shaker', 'gants?', 'ceinture', 'barre', '\bbar\b', 'serviette', 't-shirt', '\bcomprim', 'g[ée]lules?\b', '\bcaps\b', '\btabs\b', '\d+ ?mg\b', '\bshot\b', '\bml\b', 'betterave', '^\s*(?:l-)?(?:citrulline|arginine|aakg|b[êe]ta[- ]?alanine|caf[ée]ine|taurine|tyrosine|nitrate|ornithine)\b', 'drink', 'boisson', '\bgel\b', 'barre']
 
 # Produits combinés : quand un produit matche plusieurs catégories, il apparaît dans chacune,
 # avec le badge « produit combiné » et le prix entier attribué à l'actif de la liste.

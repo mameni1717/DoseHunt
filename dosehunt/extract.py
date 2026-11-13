@@ -423,7 +423,8 @@ def serving_size(text: str) -> Optional[float]:
     """Poids d'une portion déclaré en texte : « Une portion : 4.1 g », « 1 dose = 30 g », « Dose : 30g »."""
     m = re.search(r"(?:une|1)?\s*(?:portion|dose|mesure|scoop|shaker)s?\s*(?:journali[eè]re|recommand[ée]e)?\s*[:=(]\s*" + N + r"\s*g\b",
                   text, re.I) \
-        or re.search(r"(?:taille de la |une |1 )(?:dose|portion)[^\n]{0,40}?\(\s*" + N + r"\s*g\s*\)", text, re.I)
+        or re.search(r"(?:taille de la |une |1 )(?:dose|portion)[^\n]{0,40}?\(\s*" + N + r"\s*g\s*\)", text, re.I) \
+        or re.search(r"(?:chaque|une|1|par|pour une?)\s+(?:dose|portion|scoop|mesure|cuill[eè]re)\s+(?:de|d['’]environ)\s+" + N + r"\s*g\b", text, re.I)
     if m and 1 <= _f(m.group(1)) <= 150:
         return _f(m.group(1))
     return None
@@ -441,6 +442,32 @@ def _per_serving_text(text: str, noun_rx: str) -> Optional[tuple[float, str]]:
         if 0 < grams <= size:
             return round(grams / size * 100, 1), f"{m.group(0)} pour une portion de {size:g} g"
     return None
+
+
+_SERVING_HEAD = re.compile(r"(?:pour|par)\s+(?:une?\s+|1\s+)?(?:portion|dose|scoop|mesure|service|serving)?\s*\(?\s*" + N + r"\s*g\b(?!\s*de)", re.I)
+
+
+def preworkout_serving(text: str) -> Optional[ActiveContent]:
+    """Pré-workout : la portion recommandée par la marque (« 1 dose = 10 g », « Pour 10 g » en tête de tableau).
+
+    Le classement se fait au prix d'une portion : prix au kg × poids de la portion."""
+    size = serving_size(text)
+    src, ev = "regex_text", ""
+    if size is None:
+        for line in text.split("\n"):
+            if "|" in line:
+                m = _SERVING_HEAD.search(line)
+                if m and _f(m.group(1)) != 100:
+                    size, src, ev = _f(m.group(1)), "regex_table", line.strip()
+                    break
+    if size is None:
+        m = re.search(r"(?:m[ée]langer|diluer|dissoudre)\s+" + N + r"\s*g\b", text, re.I)
+        if m:
+            size, ev = _f(m.group(1)), m.group(0)
+    if size is None or not 2 <= size <= 40:
+        return None
+    return ActiveContent("preworkout", "serving", size, "g", "per_serving", src, 0.85,
+                         ev or f"portion de {size:g} g", note="portion recommandée par la marque")
 
 
 def _caffeine_per_100g(text: str) -> Optional[ActiveContent]:
@@ -468,7 +495,7 @@ def extract(category: str, body_html: str, title: str, fmt: Format) -> Optional[
     text = _THOUSANDS.sub("", html_to_text(body_html))
     full = title + "\n" + text
     if category == "preworkout":
-        return _caffeine_per_100g(text)
+        return preworkout_serving(text)
     if category in ("whey", "caseine"):
         ac = _protein_per_100g(text)
         if ac:

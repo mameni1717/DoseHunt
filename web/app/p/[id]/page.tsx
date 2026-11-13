@@ -15,7 +15,17 @@ export const dynamic = "force-dynamic";
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const id = Number((await params).id);
   const d = Number.isFinite(id) ? await getProduct(id) : null;
-  return d ? { title: `${d.product.brand ?? ""} ${d.product.name}`.trim() } : {};
+  if (!d) return {};
+  const name = displayName(d.product.brand, d.product.name, " ");
+  const cat = CATEGORY_BY_ID[d.actives[0]?.category ?? ""];
+  const title = `${name} : prix, composition et historique`;
+  const description = `${name} chez ${d.product.site_name} : vrai prix ${cat ? `(${modeDef(cat.id, cat.defaultMode).label.toLowerCase()})` : ""}, ` +
+    `meilleur code promo, composition, valeurs nutritionnelles et historique du prix.`;
+  return {
+    title, description,
+    alternates: { canonical: `/p/${id}` },
+    openGraph: { title, description, url: `/p/${id}`, images: d.product.image_url ? [d.product.image_url] : undefined },
+  };
 }
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -67,6 +77,16 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
+        "@context": "https://schema.org", "@type": "Product", name: displayName(product.brand, product.name, " "),
+        ...(product.brand ? { brand: { "@type": "Brand", name: product.brand } } : {}),
+        ...(product.image_url ? { image: product.image_url } : {}),
+        offers: ranked.slice(0, 1).map((r) => ({
+          "@type": "Offer", price: r.final.toFixed(2), priceCurrency: "EUR", url: product.url,
+          availability: r.available ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+          seller: { "@type": "Organization", name: product.site_name },
+        }))[0],
+      }) }} />
       <section className="summary">
         <div>
           <p><Link href={`/c/${actives[0]?.category ?? ""}`}>← {CATEGORY_BY_ID[actives[0]?.category ?? ""]?.label ?? "Catégories"}</Link></p>
@@ -108,6 +128,46 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           </tbody>
         </table>
       </section>
+
+      {product.review_topics && Object.keys(product.review_topics.topics).length > 0 && (
+        <section className="panel">
+          <h2>Ce qu'en disent les acheteurs</h2>
+          <div className="topics">
+            {Object.entries(product.review_topics.topics).sort((a, b) => b[1].mentions - a[1].mentions).map(([topic, t]) => {
+              const judged = t.pos + t.neg;
+              const pct = judged ? Math.round((t.pos / judged) * 100) : null;
+              return (
+                <div key={topic} className="topic">
+                  <b>{topic}</b>
+                  <span className="bar" aria-hidden="true">
+                    <i style={{ width: `${judged ? (t.pos / t.mentions) * 100 : 0}%` }} />
+                    <b style={{ width: `${judged ? (t.neg / t.mentions) * 100 : 0}%` }} />
+                  </span>
+                  <span className="note-small">{pct != null ? `${pct} % positifs` : "avis partagés"} · {t.mentions} avis</span>
+                </div>
+              );
+            })}
+          </div>
+          <p className="note-small">D'après les {product.review_topics.reviews_read} avis publiés sur la fiche du marchand au dernier relevé
+            (tous les avis du site ne sont pas toujours visibles sur sa page). Classement des thèmes automatique.</p>
+        </section>
+      )}
+
+      {product.attributes?.preworkout && (
+        <section className="panel">
+          <h2>Actifs par portion</h2>
+          <table className="t">
+            <thead><tr><th>Actif</th><th className="r">Par portion</th><th className="r">Dose des études</th><th></th></tr></thead>
+            <tbody>
+              {Object.values(product.attributes.preworkout).map((a) => (
+                <tr key={a.label}><td>{a.label}</td><td className="r">{num(a.dose, a.dose % 1 ? 1 : 0)} {a.unit}</td>
+                  <td className="r">{num(a.ref, a.ref % 1 ? 1 : 0)} {a.unit}</td><td>{a.ok ? "atteinte" : "en dessous"}</td></tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="note-small">Doses de référence utilisées dans les études sur ces actifs, à titre de repère : ce n'est pas un conseil de dosage.</p>
+        </section>
+      )}
 
       <section className="panel two">
         <div>

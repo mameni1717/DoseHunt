@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CATEGORY_BY_ID, activeLabel, modeDef, type Mode } from "@/lib/categories";
 import { confidenceLabel } from "@/lib/codes";
-import { ago, displayName, eur, num, snippet, stripBrand } from "@/lib/format";
+import { ago, dateFr, displayName, eur, num, snippet, stripBrand } from "@/lib/format";
 import { formatLabel, type Ranked } from "@/lib/rank";
 import { CodeVote, CompareToggle, GoButton, ProductImage } from "./client";
 import { currentCountry } from "@/lib/country";
@@ -44,6 +44,24 @@ export function OfferCard({ r, rank, mode, best }: { r: Ranked; rank: number; mo
   facts.push(formatLabel(r) + (r.variants > 1 ? ` · ${r.variants} arômes ou formats` : r.flavour ? ` · ${r.flavour}` : ""));
   facts.push(`chez ${r.site_name}`);
 
+  // Historique : bon moment pour acheter ?
+  const since = r.hist_since ? new Date(r.hist_since) : null;
+  const sinceLabel = since ? (Date.now() - since.getTime() > 85 * 86400_000 ? "sur 90 jours" : `depuis le ${dateFr(since)}`) : "";
+  const atLow = r.hist_min != null && (r.hist_n ?? 0) > 1 && r.final <= r.hist_min + 0.01;
+  const belowUsual = r.hist_avg30 != null && (r.hist_n ?? 0) > 1 && r.final < r.hist_avg30 * 0.95
+    ? Math.round((1 - r.final / r.hist_avg30) * 100) : 0;
+  if (atLow) tags.push(<span key="low" className="chip good">Au plus bas {sinceLabel}</span>);
+  else if (belowUsual >= 5) tags.push(<span key="usual" className="chip good">−{belowUsual} % sous le prix habituel</span>);
+
+  // Livraison offerte
+  let ship = "";
+  if (r.free_code) ship = `Livraison offerte avec le code ${r.free_code}`;
+  else if (r.free_from === 0) ship = "Livraison offerte";
+  else if (r.free_from != null) ship = r.final >= r.free_from ? `Livraison offerte (dès ${eur(r.free_from)})` : `Livraison offerte dès ${eur(r.free_from)} d'achat`;
+
+  // Pré-workout : actifs de la portion comparés aux doses des études
+  const pre = r.category === "preworkout" ? Object.values(r.attributes?.preworkout ?? {}) : [];
+
   const content = (r.calc ?? []).find((l) => l.startsWith("Contenu"));
   const calc = [
     `Prix affiché : ${eur(r.price)}${r.compare_at_price ? ` (au lieu de ${eur(r.compare_at_price)})` : ""}`,
@@ -69,7 +87,20 @@ export function OfferCard({ r, rank, mode, best }: { r: Ranked; rank: number; mo
         <div className="meta">{facts.join(" · ")}
           {r.rating != null && r.review_count ? <> · <span title={`${r.review_count} avis sur le site du marchand`}>★ {num(r.rating, 1)} ({r.review_count} avis)</span></> : null}
         </div>
+        {pre.length > 0 && (
+          <div className="pre" title="Dose de la portion comparée à la dose utilisée dans les études">
+            {pre.map((a) => (
+              <span key={a.label} className={a.ok ? "ok" : "low"}>
+                {a.ok ? "✓" : "↓"} {a.label} {num(a.dose, a.dose % 1 ? 1 : 0)} {a.unit}<small> / {num(a.ref, a.ref % 1 ? 1 : 0)} {a.unit}</small>
+              </span>
+            ))}
+          </div>
+        )}
         <div className="chips">{tags}</div>
+        <div className="subline">
+          {ship && <span>🚚 {ship}</span>}
+          {r.hist_min != null && (r.hist_n ?? 0) > 1 && !atLow && <span>Plus bas {sinceLabel} : {eur(r.hist_min)}</span>}
+        </div>
       </div>
       <div className="price">
         <div className="unit">
