@@ -89,6 +89,8 @@ _INGR = re.compile(r"(?:liste des )?ingr[ée]dients?(?:\s*\([^)]{0,40}\))?(?:\s*
 def ingredients(text: str) -> Optional[str]:
     for m in _INGR.finditer(text):
         val = re.sub(r"\s+", " ", m.group(1)).strip(" .;")
+        if re.search(r"\b(?:portions?|dose|m[ée]lang|consomm|ml d.eau|shaker|avant (?:votre|l.)|minutes?)\b", val[:120], re.I):
+            continue                                     # mode d'emploi pris pour une liste d'ingrédients
         if "," in val and not re.search(r"\b(?:de qualité|naturels?|soigneusement)\b.{0,10}$", val[:40], re.I):
             return val[:900]
     return None
