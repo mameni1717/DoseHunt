@@ -182,7 +182,7 @@ export function Optimizer({ cats, shippingEstimate }: { cats: CatChoice[]; shipp
               <table className="opt-lines">
                 <tbody>
                   {b.lines.map((l) => (
-                    <tr key={l.offer_id}>
+                    <tr key={`${l.cat}-${l.offer_id}`}>
                       <td><a href={`/p/${l.product_id}`}>{l.brand ? `${l.brand} · ` : ""}{l.name}</a>
                         <small> · {formatLabel(l)}{l.flavour ? ` · ${l.flavour}` : ""}</small></td>
                       <td className="num opt-unit">{l.copies > 1 ? `${l.copies} × ${eur(l.price)}` : eur(l.price)}</td>
@@ -192,7 +192,8 @@ export function Optimizer({ cats, shippingEstimate }: { cats: CatChoice[]; shipp
                   ))}
                 </tbody>
               </table>
-              <p className="opt-note">Couvre : {b.lines.map((l) => `${byId[l.cat]?.label ?? l.cat} ${qtyText(byId[l.cat]?.kind ?? "grams", l.covered)}`).join(" · ")}</p>
+              <p className="opt-note">Couvre : {[...new Set(b.lines.map((l) => l.cat))].map((cat) =>
+                `${byId[cat]?.label ?? cat} ${qtyText(byId[cat]?.kind ?? "grams", b.lines.filter((l) => l.cat === cat).reduce((s, l) => s + l.covered, 0))}`).join(" · ")}</p>
             </li>
           ))}
         </ol>

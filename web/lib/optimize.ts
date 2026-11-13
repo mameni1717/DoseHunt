@@ -73,24 +73,84 @@ export function productKey(r: Pick<IndexRow, "category" | "brand" | "name" | "si
   return [r.category, brandKey(r.brand), coreName(r.name, r.brand, flavours, r.site_name ?? "")].join("|");
 }
 
-function bestLine(need: Need, rows: IndexRow[], flavours: Set<string>): Line | null {
+/** Offres du marchand qui conviennent au besoin, avec leur quantité dans l'unité du besoin. */
+function candidates(need: Need, rows: IndexRow[], flavours: Set<string>): { r: IndexRow; m: number }[] {
   const kind = KIND_BY_CATEGORY[need.cat] ?? "grams";
-  let best: Line | null = null;
+  const out: { r: IndexRow; m: number }[] = [];
   for (const r of rows) {
     if (!r.available || r.category !== need.cat) continue;
     if (need.sub && r.subcategory !== need.sub) continue;
     if (need.pin && productKey(r, flavours) !== need.pin) continue;
-    if (!need.pin && r.combined) continue;
-    if (need.minActive && !(r.basis === "per_100g" && r.unit === "g" && (r.amount ?? 0) >= need.minActive)) continue;   // « whey + collagène » ne compte pas comme le collagène de la liste
+    if (!need.pin && r.combined) continue;   // « whey + collagène » ne compte pas comme le collagène de la liste
+    if (need.minActive && !(r.basis === "per_100g" && r.unit === "g" && (r.amount ?? 0) >= need.minActive)) continue;
     const m = measure(r, kind);
-    if (!m || m <= 0) continue;
-    const copies = Math.max(1, Math.ceil(need.qty / m - 1e-9));
-    if (copies > MAX_COPIES) continue;
-    const cost = Math.round(r.price * copies * 100) / 100;
-    const covered = m * copies;
-    // le moins cher ; à prix égal, le moins de surplus
-    if (!best || cost < best.cost - 0.005 || (Math.abs(cost - best.cost) < 0.005 && covered < best.covered))
-      best = { need, row: r, copies, covered, cost };
+    if (m && m > 0) out.push({ r, m });
+  }
+  return out;
+}
+
+/**
+ * Combinaison de formats la moins chère couvrant la quantité (2,5 kg → 2 kg + 500 g plutôt que 5 × 500 g).
+ * Problème du sac à dos « couvrir au moindre coût », résolu par programmation dynamique sur une grille
+ * (10 g pour les poudres, 1 unité ou portion sinon).
+ */
+export function coverCheapest(qty: number, offers: { r: IndexRow; m: number }[], step: number): { r: IndexRow; m: number; copies: number }[] | null {
+  // un seul format par taille : le moins cher
+  const bySize = new Map<number, { r: IndexRow; m: number; w: number }>();
+  for (const o of offers) {
+    const w = Math.max(1, Math.round(o.m / step));
+    const cur = bySize.get(w);
+    if (!cur || o.r.price < cur.r.price) bySize.set(w, { ...o, w });
+  }
+  const items = [...bySize.values()];
+  if (!items.length) return null;
+  const target = Math.max(1, Math.ceil(qty / step - 1e-9));
+  const limit = target + Math.max(...items.map((i) => i.w));
+  if (limit > 20000) return null;
+  const cost = new Float64Array(limit + 1).fill(Infinity);
+  const pick = new Int32Array(limit + 1).fill(-1);
+  cost[0] = 0;
+  for (let j = 1; j <= limit; j++) {
+    for (let k = 0; k < items.length; k++) {
+      const it = items[k];
+      if (it.w > j || cost[j - it.w] === Infinity) continue;
+      const c = cost[j - it.w] + it.r.price;
+      if (c < cost[j] - 1e-9) { cost[j] = c; pick[j] = k; }
+    }
+  }
+  let bestJ = -1;
+  for (let j = target; j <= limit; j++)
+    if (cost[j] < Infinity && (bestJ < 0 || cost[j] < cost[bestJ] - 0.005)) bestJ = j;   // à prix égal : le moins de surplus
+  if (bestJ < 0) return null;
+  const counts = new Map<number, number>();
+  for (let j = bestJ; j > 0; j -= items[pick[j]].w) counts.set(pick[j], (counts.get(pick[j]) ?? 0) + 1);
+  const total = [...counts.values()].reduce((a, b) => a + b, 0);
+  if (total > MAX_COPIES) return null;
+  return [...counts.entries()].sort((a, b) => items[b[0]].m - items[a[0]].m)
+    .map(([k, copies]) => ({ r: items[k].r, m: items[k].m, copies }));
+}
+
+/** Lignes du panier pour un besoin : la combinaison la moins chère d'un même produit (plusieurs formats possibles). */
+function bestLines(need: Need, rows: IndexRow[], flavours: Set<string>): Line[] | null {
+  const kind = KIND_BY_CATEGORY[need.cat] ?? "grams";
+  const step = kind === "grams" ? 10 : 1;
+  const groups = new Map<string, { r: IndexRow; m: number }[]>();
+  for (const c of candidates(need, rows, flavours)) {
+    const k = productKey(c.r, flavours);
+    groups.set(k, [...(groups.get(k) ?? []), c]);
+  }
+  let best: Line[] | null = null;
+  let bestCost = Infinity, bestCovered = Infinity;
+  for (const offers of groups.values()) {
+    const combo = coverCheapest(need.qty, offers, step);
+    if (!combo) continue;
+    const lines = combo.map((x) => ({ need, row: x.r, copies: x.copies, covered: x.m * x.copies,
+                                      cost: Math.round(x.r.price * x.copies * 100) / 100 }));
+    const cost = lines.reduce((s, l) => s + l.cost, 0);
+    const covered = lines.reduce((s, l) => s + l.covered, 0);
+    if (cost < bestCost - 0.005 || (Math.abs(cost - bestCost) < 0.005 && covered < bestCovered)) {
+      best = lines; bestCost = cost; bestCovered = covered;
+    }
   }
   return best;
 }
@@ -139,12 +199,13 @@ export function optimize(needs: Need[], rows: IndexRow[], codes: PromoCode[], sh
   const baskets: Basket[] = [];
   for (const [site, siteRows] of bySite) {
     const lines: Line[] = [];
+    let complete = true;
     for (const n of valid) {
-      const l = bestLine(n, siteRows, flavours);
-      if (!l) break;
-      lines.push(l);
+      const ls = bestLines(n, siteRows, flavours);
+      if (!ls) { complete = false; break; }
+      lines.push(...ls);
     }
-    if (lines.length !== valid.length) continue;           // il manque un produit : pas de panier sur ce site
+    if (!complete) continue;                                 // il manque un produit : pas de panier sur ce site
     const subtotal = Math.round(lines.reduce((s, l) => s + l.cost, 0) * 100) / 100;
     const code = basketCode(codes, site, lines, subtotal, opts);
     const total = Math.round((subtotal - (code?.discount ?? 0)) * 100) / 100;

@@ -84,3 +84,24 @@ test("à total proche, le site avec livraison offerte passe devant", () => {
   const res = optimize([{ cat: "whey", qty: 1000 }], rows, [], new Map([["b", 30]]), opts);
   assert.equal(res[0].site_id, "b");
 });
+
+test("2,5 kg : combinaison de formats d'un même produit plutôt que 5 × 500 g", () => {
+  const rows = [
+    row({ site_id: "a", site_name: "A", price: 12, grams: 500 }),
+    row({ site_id: "a", site_name: "A", price: 20, grams: 1000 }),
+    row({ site_id: "a", site_name: "A", price: 36, grams: 2000 }),
+  ];
+  const [b] = optimize([{ cat: "whey", qty: 2500 }], rows, [], new Map(), { firstOrder: false, useCodes: false });
+  assert.deepEqual(b.lines.map((l) => [l.row.grams, l.copies]), [[2000, 1], [500, 1]]);
+  assert.equal(b.subtotal, 48);
+});
+
+test("1,5 kg : pas de surplus inutile quand 1 kg + 500 g coûte moins que 2 kg", () => {
+  const rows = [
+    row({ site_id: "a", site_name: "A", price: 12, grams: 500 }),
+    row({ site_id: "a", site_name: "A", price: 20, grams: 1000 }),
+    row({ site_id: "a", site_name: "A", price: 45, grams: 2000 }),
+  ];
+  const [b] = optimize([{ cat: "whey", qty: 1500 }], rows, [], new Map(), { firstOrder: false, useCodes: false });
+  assert.equal(b.subtotal, 32);
+});
