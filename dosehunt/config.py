@@ -23,6 +23,8 @@ class Site:
     path_prefix: str = ""
     country: str = "FR"
     currency: str = "EUR"
+    # Langue des fiches du site : choisit les règles de lecture (mots, regex). Absente : déduite du pays.
+    language: str = ""
     delay_seconds: float = 2.0
     page_size: int = 250
     filters: dict[str, Any] = field(default_factory=dict)
@@ -30,6 +32,11 @@ class Site:
     # Lien d'affiliation : {url} est remplacé par l'adresse de l'offre encodée. Vide = lien direct.
     # Exemple Awin : https://www.awin1.com/cread.php?awinmid=12345&awinaffid=67890&ued={url}
     affiliate_template: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.language:
+            from .lang import default_language
+            self.language = default_language(self.country)
 
     @property
     def root(self) -> str:
@@ -61,6 +68,13 @@ def get_site(site_id: str) -> Site:
         return sites()[site_id]
     except KeyError as exc:
         raise SystemExit(f"Site inconnu : {site_id}. Sites : {', '.join(sites())}") from exc
+
+
+@lru_cache
+def countries() -> dict[str, dict]:
+    """Pays connus (config/countries.yaml) : code ISO → {name, currency, vat_rate, language}."""
+    data = _load("countries.yaml") or {}
+    return {str(c["code"]).upper(): c for c in data.get("countries", [])}
 
 
 @lru_cache

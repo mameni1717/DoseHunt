@@ -1,4 +1,4 @@
-# Les 25 sites suivis pour la France (liste fixée le 11/11/2026).
+# Les 25 sites suivis pour la France (liste fixée le 11/11/2026), puis les sites des autres pays (id marchand-pays).
 # collector : shopify | shopify_headless | prestashop | magento | custom | affiliate_feed
 # status    : active (collecte automatique en place) | todo (collecteur à écrire) | decide (décision en attente)
 # Plateformes vérifiées en direct le 11/11/2026, sauf mention « probable ».
@@ -188,6 +188,23 @@ sites:
       product_pattern: '/p/'
       prefilter_url: true
     notes: "JSON-LD ProductGroup : toutes les déclinaisons (format × parfum) et leurs prix sur une seule fiche."
+  # Espagne : une entrée par marchand ET par pays (id marchand-pays). `language` est déduit du pays (ES → es)
+  # et choisit les règles de lecture espagnoles ; require_language écarte les fiches dans une autre langue.
+  # status todo : pas encore collecté (absent de sites-json) tant que le pays n'est pas ouvert.
+  - id: myprotein-es
+    name: Myprotein
+    base_url: https://www.myprotein.es
+    platform: custom (THG)
+    collector: page
+    status: todo
+    country: ES
+    language: es
+    filters:
+      sitemaps: [/sitemapindex-product.xml.gz]
+      product_pattern: '/p/'
+      prefilter_url: true
+      require_language: true
+    notes: "Même plateforme que myprotein (France). robots.txt autorise /p/ (vérifié le 13/11/2026). Livraison offerte dès 55 € (accueil)."
   - id: prozis
     name: Prozis
     base_url: https://www.prozis.com

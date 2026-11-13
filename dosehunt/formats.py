@@ -8,17 +8,20 @@ from typing import Iterable, Optional
 from .models import Format, RawProduct, RawVariant
 
 NUM = r"(\d+(?:[.,]\d+)?)"
+# Les mots espagnols (« cápsulas », « comprimidos », « barritas », « dosis »…) sont ajoutés en union : ils n'apparaissent
+# jamais dans les libellés français, qui sont donc lus exactement comme avant.
 UNIT_WORDS = {
     "gélule": r"g[ée]lules?|v[ée]gicaps?|(?:v[ée]g(?:an|gie|[ée]tales?)?\s+)?caps\b|vcaps",
-    "capsule": r"capsules?(?: molles)?|softgels?",
-    "comprimé": r"comprim[ée]s?|tabs?\b|tablets?|tablettes?",
-    "gummy": r"gummies|gummy|gommes?",
-    "goutte": r"gouttes?",
-    "stick": r"sticks?|sachets? individuels?|unidoses?",
-    "ampoule": r"ampoules?|shots?|fioles?",
-    "barre": r"barres?|bars?\b",
+    "capsule": r"capsules?(?: molles)?|softgels?|c[áa]psulas?(?: blandas| vegetales| veganas)?|perlas\b",
+    "comprimé": r"comprim[ée]s?|tabs?\b|tablets?|tablettes?|comprimidos?|tabletas?",
+    "gummy": r"gummies|gummy|gommes?|gominolas?",
+    "goutte": r"gouttes?|gotas\b",
+    "stick": r"sticks?|sachets? individuels?|unidoses?|sobres\b",
+    "ampoule": r"ampoules?|shots?|fioles?|ampollas?|viales\b",
+    "barre": r"barres?|bars?\b|barritas?|barras\b",
 }
-FORMAT_OPTION = re.compile(r"format|taille|size|contenance|conditionnement|packaging|inhoud|quantit|poids|dur[ée]e|title", re.I)
+FORMAT_OPTION = re.compile(r"format|taille|size|contenance|conditionnement|packaging|inhoud|quantit|poids|dur[ée]e|title|"
+                           r"tama[ñn]o|cantidad|peso|contenido", re.I)
 FLAVOUR_OPTION = re.compile(r"saveur|go[uû]ts?|parfum|ar[oô]me|flavou?r|smaak|sabor", re.I)
 
 
@@ -36,10 +39,10 @@ def parse_format(text: str, *, prefer_units: bool = False) -> Format:
         return fmt
 
     # Lots : « 2 boîtes », « (3 produits) », « lot de 3 », « pack de 2 » (hors « pack de 12 barres »)
-    m = re.search(r"\b(\d+)\s*(bo[iî]tes|produits|pots|lots|doypacks|sachets|flacons|piluliers)\b", t)
+    m = re.search(r"\b(\d+)\s*(bo[iî]tes|produits|pots|lots|doypacks|sachets|flacons|piluliers|botes|productos|frascos)\b", t)
     if m and int(m.group(1)) > 1:
         fmt.pack_count = int(m.group(1))
-    m = re.search(r"\b(?:lot|pack|duo|trio)\s+de\s+(\d+)\b(?!\s*(?:" + "|".join(UNIT_WORDS.values()) + r"))", t)
+    m = re.search(r"\b(?:lot|pack|duo|trio|lote)\s+de\s+(\d+)\b(?!\s*(?:" + "|".join(UNIT_WORDS.values()) + r"))", t)
     if m:
         fmt.pack_count = int(m.group(1))
     if re.search(r"\bduo\b", t) and fmt.pack_count == 1 and re.search(r"pack|lot", t):
@@ -49,7 +52,7 @@ def parse_format(text: str, *, prefer_units: bool = False) -> Format:
     m = re.search(r"\b(\d+)\s*x\s*" + NUM + r"\s*(g|gr)\b", t)
     if m:
         fmt.units, fmt.unit_grams, fmt.unit_word = int(m.group(1)), _f(m.group(2)), "barre"
-    m = re.search(r"(\d+)\s*(barres?|bars?)\b(?:\s*de\s*" + NUM + r"\s*g)?", t)
+    m = re.search(r"(\d+)\s*(barres?|bars?|barritas?|barras)\b(?:\s*de\s*" + NUM + r"\s*g)?", t)
     if m:
         fmt.units, fmt.unit_word = int(m.group(1)), "barre"
         if m.group(3):
@@ -63,8 +66,8 @@ def parse_format(text: str, *, prefer_units: bool = False) -> Format:
             fmt.unit_word = next(k for k, v in UNIT_WORDS.items() if re.search(v, t[m.start():m.end() + 12]))
 
     # « Barre … Lot de 24 », « La Barre Fit x 32 » : nombre de barres
-    if fmt.units is None and re.search(r"\bbarres?\b|\bbars?\b", t):
-        m = re.search(r"(?:lot de|pack de|bo[iî]te de|\bx|×)\s*(\d{1,3})\b(?!\s*(?:g|gr|kg|ml)\b)", t)
+    if fmt.units is None and re.search(r"\bbarres?\b|\bbars?\b|\bbarritas?\b", t):
+        m = re.search(r"(?:lot de|pack de|bo[iî]te de|lote de|caja de|\bx|×)\s*(\d{1,3})\b(?!\s*(?:g|gr|kg|ml)\b)", t)
         if m:
             fmt.units, fmt.unit_word, fmt.pack_count = int(m.group(1)), "barre", 1
 
@@ -76,20 +79,20 @@ def parse_format(text: str, *, prefer_units: bool = False) -> Format:
                 fmt.units, fmt.unit_word = int(m.group(1)), word
                 break
         else:
-            m = re.search(r"(\d+)\s*(?:pack|pcs|pièces|portions|doses)\b", t)
+            m = re.search(r"(\d+)\s*(?:pack|pcs|pièces|portions|doses|porciones|raciones|dosis|servicios|tomas)\b", t)
             if m:
                 fmt.units, fmt.unit_word = int(m.group(1)), "dose"
 
     # Poids : « 1,38kg », « 2.25 Kg », « 900 g », « 1.816kg », « 2030g »
     if fmt.unit_grams is None or fmt.units is None:
-        m = re.search(NUM + r"\s*(kg|kilos?)\b", t) or re.search(NUM + r"\s*(g|gr|grammes?)\b", t)
+        m = re.search(NUM + r"\s*(kg|kilos?)\b", t) or re.search(NUM + r"\s*(g|gr|grammes?|gramos?)\b", t)
         if m:
             grams = _f(m.group(1)) * (1000 if m.group(2).startswith("k") else 1)
             if fmt.unit_word == "barre" and fmt.units and grams < 200:
                 fmt.unit_grams = grams
             elif fmt.units is None or fmt.unit_word != "barre":
                 fmt.grams = grams
-                if fmt.units is None and grams < 120 and re.search(r"barre|bar\b", t):
+                if fmt.units is None and grams < 120 and re.search(r"barre|bar\b|barrita", t):
                     fmt.units, fmt.unit_grams, fmt.grams, fmt.unit_word = 1, grams, None, "barre"
 
     # « 1.8 kg (2 produits) » : le poids affiché est déjà le total du lot.
@@ -99,10 +102,10 @@ def parse_format(text: str, *, prefer_units: bool = False) -> Format:
     m = re.search(NUM + r"\s*ml\b", t)
     if m:
         fmt.millilitres = _f(m.group(1))
-    m = re.search(r"(\d+)\s*mois\b", t)
+    m = re.search(r"(\d+)\s*(?:mois|meses)\b", t)
     if m:
         fmt.months = int(m.group(1))
-    m = re.search(r"(\d+)\s*jours\b", t)
+    m = re.search(r"(\d+)\s*(?:jours|d[íi]as)\b", t)
     if m and fmt.months is None:
         fmt.months = int(m.group(1)) / 30          # « 15 jours » = un demi-mois de cure
 
