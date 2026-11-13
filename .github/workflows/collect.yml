@@ -106,3 +106,10 @@ jobs:
           h=$(date -u +%H)
           if [ "$h" -ge 2 ] && [ "$h" -lt 9 ]; then dosehunt purge || true; else echo "Rétention : déjà faite aujourd'hui (passage de la nuit)"; fi
       - run: dosehunt status
+      - name: Vider le cache du site (nouveaux prix visibles tout de suite)
+        if: always()
+        env:
+          REVALIDATE_TOKEN: ${{ secrets.REVALIDATE_TOKEN }}
+        run: |
+          if [ -z "$REVALIDATE_TOKEN" ]; then echo "REVALIDATE_TOKEN absent : le cache expirera seul (30 min)"; exit 0; fi
+          curl -fsS -X POST -H "Authorization: Bearer $REVALIDATE_TOKEN" "$SITE_URL/api/revalidate" || echo "Revalidation impossible (sans gravité)"

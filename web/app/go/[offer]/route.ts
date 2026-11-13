@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { q } from "@/lib/db";
+import { q, qc } from "@/lib/db";
 
 // Redirection vers le marchand : lien affilié si le site en a un, sinon lien direct. Le clic est compté sans
 // donnée personnelle (ni IP ni cookie).
 export async function GET(req: Request, { params }: { params: Promise<{ offer: string }> }) {
   const id = Number((await params).offer);
   if (!Number.isInteger(id)) return new NextResponse("Offre inconnue", { status: 404 });
-  const [o] = await q<{ url: string; affiliate_template: string | null }>(
+  const [o] = await qc<{ url: string; affiliate_template: string | null }>(
     `select o.url, s.affiliate_template from offers o join sites s on s.id = o.site_id where o.id = $1`, [id]);
   if (!o) return new NextResponse("Offre inconnue", { status: 404 });
   const code = new URL(req.url).searchParams.get("code");
