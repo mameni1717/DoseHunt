@@ -28,7 +28,7 @@ export async function sendMail(to: string, subject: string, html: string): Promi
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-    body: JSON.stringify({ from: process.env.ALERT_FROM || "DoseHunt <alertes@dosehunt.fr>", to, subject, html }),
+    body: JSON.stringify({ from: process.env.ALERT_FROM || "DoseHunt <alertes@dosehunt.com>", to, subject, html }),
   });
   return r.ok;
 }
