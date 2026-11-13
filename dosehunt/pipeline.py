@@ -150,8 +150,12 @@ class RunStats:
     reviews: list[ReviewItem] = field(default_factory=list)
 
 
+# À incrémenter quand les règles de lecture des fiches changent : toutes les fiches sont relues une fois.
+RULES_VERSION = "2026-11-13"
+
+
 def _body_hash(p: RawProduct) -> str:
-    return hashlib.sha256((p.title + "\n" + p.body_html).encode()).hexdigest()
+    return hashlib.sha256((RULES_VERSION + "\n" + p.title + "\n" + p.body_html).encode()).hexdigest()
 
 
 def _review(conn: Connection, stats: RunStats, item: ReviewItem, category: Optional[str] = None) -> None:
