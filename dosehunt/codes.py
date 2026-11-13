@@ -37,6 +37,25 @@ PCT = re.compile(r"-\s*(\d{1,2})\s*%|(\d{1,2})\s*%\s*(?:de\s+)?(?:r[ée]duction|
 MIN_ORDER = re.compile(r"(?:d[èe]s|[àa] partir de|pour)\s*(\d{1,4}(?:[.,]\d{1,2})?)\s*(?:€|euros?)(?:\s*d['’]achats?)?", re.I)
 ENDS = re.compile(r"jusqu['’]?\s*au\s*(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})", re.I)
 
+# --- espagnol : ajouté aux règles françaises pour les sites en espagnol
+STOP_ES = {
+    "CODIGO", "CUPON", "CUPONES", "DESCUENTO", "DESCUENTOS", "ENVIO", "ENVIOS", "GRATIS", "OFERTA", "OFERTAS", "REBAJAS",
+    "NUEVO", "NUEVOS", "NOVEDADES", "REGALO", "AHORA", "COMPRAR", "CARRITO", "CESTA", "AQUI", "TODO", "TODOS", "TIENDA",
+    "VALIDAR", "USAR", "EXTRA", "PROMOCION", "PROMOCIONES", "HASTA", "DESDE", "PEDIDO", "CLIENTES", "IVA",
+}
+_CODE_ES = re.compile(r"(?i:c[óo]digo|cup[óo]n)(?i:es|s)?\s*(?i:(?:de\s+)?(?:descuento|promocional|promo|regalo))?\s*"
+                      r"(?:[:«\"“]|(?i:con))?\s*[«\"“]?\s*" + CODE_TOKEN + r"\b")
+PCT_ES = re.compile(r"-\s*(\d{1,2})\s*%|(\d{1,2})\s*%\s*(?:de\s+)?(?:descuento|dto\.?|rebaja|off|extra|adicional)"
+                    r"|(?i:\bun)\s+(\d{1,2})\s*%", re.I)
+MIN_ORDER_ES = re.compile(r"(?:desde|a partir de|en (?:pedidos|compras) (?:superiores a|de m[áa]s de|desde|a partir de)|"
+                          r"por compras? (?:superiores a|de m[áa]s de|desde)|para pedidos (?:superiores a|de m[áa]s de)|"
+                          r"m[áa]s de)\s*(\d{1,4}(?:[.,]\d{1,2})?)\s*(?:€|euros?)", re.I)
+ENDS_ES = re.compile(r"(?:hasta|v[áa]lido hasta) el\s*(\d{1,2})[/.](\d{1,2})[/.](\d{2,4})", re.I)
+
+
+def _stop(lang: str) -> set:
+    return STOP | STOP_ES if lang == "es" else STOP
+
 
 @dataclass
 class FoundCode:
@@ -75,15 +94,18 @@ def _segment(text: str, start: int, end: int, prev_end: int, next_start: Optiona
     return text[left + 1:right]
 
 
-def _tiers(segment: str) -> list[dict]:
+def _tiers(segment: str, lang: str = "fr") -> list[dict]:
     tiers = []
-    for m in PCT.finditer(segment):
-        pct = int(m.group(1) or m.group(2))
+    pcts = PCT if lang != "es" else PCT_ES
+    for m in pcts.finditer(segment):
+        pct = int(next(g for g in m.groups() if g))
         if not 3 <= pct <= 70:
             continue
-        after = segment[m.end():m.end() + 60]
+        after = segment[m.end():m.end() + (60 if lang != "es" else 90)]
         before = segment[max(0, m.start() - 40):m.start()]
         mo = MIN_ORDER.search(after) or MIN_ORDER.search(before)
+        if mo is None and lang == "es":
+            mo = MIN_ORDER_ES.search(after) or MIN_ORDER_ES.search(before)
         upto = re.match(r"\s*jusqu['’]?\s*[àa]\s*\d", after)
         minimum = 0.0 if upto or not mo else float(mo.group(1).replace(",", "."))
         tiers.append({"min": minimum, "pct": pct})
@@ -91,31 +113,35 @@ def _tiers(segment: str) -> list[dict]:
     return sorted(uniq.values(), key=lambda t: t["min"])
 
 
-def extract_codes(text: str) -> list[FoundCode]:
+def extract_codes(text: str, lang: str = "fr") -> list[FoundCode]:
     found: dict[str, FoundCode] = {}
+    stop = _stop(lang)
     patterns = [
         re.compile(r"(?i:code|coupon)(?i:s)?\s*(?i:promo(?:tionnel)?)?\s*(?:[:«\"“]|(?i:avec))?\s*[«\"“]?\s*" + CODE_TOKEN + r"\b"),
         re.compile(r"(?:€|euros?|%)\s*(?:d['’]achats?)?\s*[:=]\s*" + CODE_TOKEN + r"\b"),
     ]
+    if lang == "es":                 # « código descuento X », « cupón: X », « usa el código X », « con el código X »
+        patterns.append(_CODE_ES)
     hits = sorted({(m.start(1), m.end(1), m.group(1)) for rx in patterns for m in rx.finditer(text)})
     # « avec les codes BLACK10 / BLACK15 » : les codes suivants d'une énumération
     extra = []
     for s, e, c in hits:
-        for m in re.finditer(r"\s*(?:/|et|,|ou)\s*" + CODE_TOKEN + r"\b", text[e:e + 60]):
+        for m in re.finditer(r"\s*(?:/|et|,|ou" + ("|y|o" if lang == "es" else "") + r")\s*" + CODE_TOKEN + r"\b", text[e:e + 60]):
             if m.start() != 0 and not text[e:e + m.start()].strip(" /,") == "":
                 break
             extra.append((e + m.start(1), e + m.end(1), m.group(1)))
             e = e + m.end()
     hits = sorted(set(hits + extra))
-    hits = [h for h in hits if h[2] not in STOP and (re.search(r"\d", h[2]) or len(h[2]) >= 5)]
+    hits = [h for h in hits if h[2] not in stop and (re.search(r"\d", h[2]) or len(h[2]) >= 5)]
     prev_end = -1
     for i, (start, end, code) in enumerate(hits):
         next_start = hits[i + 1][0] if i + 1 < len(hits) else None
         seg = _segment(text, start, end, prev_end, next_start)
         prev_end = end
-        tiers = _tiers(seg)
+        tiers = _tiers(seg, lang)
         fc = FoundCode(code=code, tiers=tiers, evidence=re.sub(r"\s+", " ", seg).strip()[:300])
-        fc.up_to = bool(re.search(r"jusqu['’]?\s*[àa]\s*-?\s*\d{1,2}\s*%", seg, re.I)) and len(tiers) == 1
+        fc.up_to = (bool(re.search(r"jusqu['’]?\s*[àa]\s*-?\s*\d{1,2}\s*%", seg, re.I))
+                    or (lang == "es" and bool(re.search(r"hasta\s+(?:un\s+|el\s+)?-?\s*\d{1,2}\s*%", seg, re.I)))) and len(tiers) == 1
         if tiers:
             fc.value = tiers[0]["pct"]
             fc.min_order = tiers[0]["min"] or None
@@ -125,11 +151,14 @@ def extract_codes(text: str) -> list[FoundCode]:
     for code, fc in found.items():
         for m in re.finditer(re.escape(code), text):
             window = text[max(0, m.start() - 400):m.end() + 600].lower()
-            if re.search(r"premi[èe]re commande|1(?:è|e|ère|re)\s*commande|nouveaux? clients?|bienvenue", window):
+            if re.search(r"premi[èe]re commande|1(?:è|e|ère|re)\s*commande|nouveaux? clients?|bienvenue", window) \
+                    or (lang == "es" and re.search(r"primer pedido|primera compra|nuevos? clientes?|bienvenida", window)):
                 fc.first_order_only = True
-            if re.search(r"(?<!non )cumulable avec (?:les |la |toutes les )?(?:promotions?|promos?|prix barr|offres?)", window):
+            if re.search(r"(?<!non )cumulable avec (?:les |la |toutes les )?(?:promotions?|promos?|prix barr|offres?)", window) \
+                    or (lang == "es" and re.search(r"(?<!no )(?:acumulable|combinable) con (?:las |otras |todas las )?(?:promociones|ofertas|rebajas)", window)):
                 fc.stackable_with_sale = True
-            if (e := ENDS.search(text[max(0, m.start() - 400):m.end() + 600])):
+            near = text[max(0, m.start() - 400):m.end() + 600]
+            if (e := ENDS.search(near) or (ENDS_ES.search(near) if lang == "es" else None)):
                 d, mth, y = int(e.group(1)), int(e.group(2)), int(e.group(3))
                 y = y + 2000 if y < 100 else y
                 try:
@@ -141,7 +170,7 @@ def extract_codes(text: str) -> list[FoundCode]:
 
 def collect_site_codes(site: Site, client: Optional[PoliteClient] = None, pages: Optional[list[str]] = None) -> list[FoundCode]:
     own = client is None
-    client = client or PoliteClient(delay_seconds=site.delay_seconds)
+    client = client or PoliteClient(delay_seconds=site.delay_seconds, language=site.language)
     urls = pages or [site.root + "/"] + [u if u.startswith("http") else site.base_url.rstrip("/") + u
                                           for u in (site.filters or {}).get("code_pages", [])]
     merged: dict[str, FoundCode] = {}
@@ -154,7 +183,7 @@ def collect_site_codes(site: Site, client: Optional[PoliteClient] = None, pages:
                 continue
             if resp is None:
                 continue
-            for fc in extract_codes(html_to_text(resp.text)):
+            for fc in extract_codes(html_to_text(resp.text), site.language):
                 merged.setdefault(fc.code, FoundCode(code=fc.code)).merge(fc)
     finally:
         if own:
@@ -173,7 +202,7 @@ def survey_site_codes(site: Site, product_urls: Optional[list[str]] = None,
     Renvoie (codes, nombre de pages lues) : 0 page lue = site injoignable, les codes connus ne sont pas
     comptés comme disparus. Un code vu sur les pages générales ou sur au moins 2 fiches vaut pour tout le site."""
     own = client is None
-    client = client or PoliteClient(delay_seconds=site.delay_seconds)
+    client = client or PoliteClient(delay_seconds=site.delay_seconds, language=site.language)
     general = [site.root + "/"] + [u if u.startswith("http") else site.base_url.rstrip("/") + u
                                    for u in (site.filters or {}).get("code_pages", [])]
     merged: dict[str, FoundCode] = {}
@@ -190,7 +219,7 @@ def survey_site_codes(site: Site, product_urls: Optional[list[str]] = None,
             if resp is None:
                 continue
             pages_read += 1
-            for fc in extract_codes(html_to_text(resp.text)):
+            for fc in extract_codes(html_to_text(resp.text), site.language):
                 merged.setdefault(fc.code, FoundCode(code=fc.code)).merge(fc)
                 if url in general:
                     on_general.add(fc.code)
@@ -222,33 +251,53 @@ FREE_CODE = [
 ]
 
 
-def shipping_info(text: str) -> tuple[Optional[float], list[str], str]:
+# Espagnol : « Envío gratis a partir de 55€ », « envío gratuito desde 39,90€ », « ENVÍO GRATIS A PARTIR DE €30 »,
+# « gastos de envío gratis en pedidos superiores a 49 € », « Envío gratis en 24/48 horas desde 29,99 € ».
+# Montant : virgule ou point, symbole avant ou après, pas de \b après €.
+_FROM_ES = (r"(?:desde|a\s+partir\s+de|en\s+(?:pedidos|compras)\s+(?:superiores\s+a|de\s+m[áa]s\s+de|desde|a\s+partir\s+de|de)|"
+            r"por\s+compras?\s+(?:superiores\s+a|de\s+m[áa]s\s+de|desde)|para\s+pedidos\s+(?:superiores\s+a|de\s+m[áa]s\s+de|desde)|"
+            r"(?:al\s+)?gastar|m[áa]s\s+de|superiores?\s+a|\+)")
+FREE_FROM_ES = [
+    re.compile(r"(?:env[íi]os?|gastos\s+de\s+env[íi]o|entrega)[^.\n€]{0,45}?(?:gratis|gratuitos?|gratuita)[^.\n€]{0,50}?" + _FROM_ES + r"\s*" + _AMOUNT, re.I),
+    re.compile(_FROM_ES + r"\s*" + _AMOUNT + r"\s*(?:de\s+compra)?\s*[:,-]?\s*(?:el\s+|los\s+)?(?:env[íi]o|gastos\s+de\s+env[íi]o)\s+"
+               r"(?:es\s+|son\s+)?(?:gratis|gratuitos?)", re.I),
+]
+FREE_ALWAYS_ES = re.compile(r"env[íi]o\s+(?:gratis|gratuito)\s+(?:sin\s+(?:pedido\s+|compra\s+)?m[íi]nim[oa]|en\s+todos\s+(?:los\s+)?pedidos|"
+                            r"desde\s+el\s+primer\s+euro)", re.I)
+FREE_CODE_ES = [
+    re.compile(r"env[íi]o\s+(?:gratis|gratuito)[^.\n]{0,60}?(?:c[óo]digo|cup[óo]n)\s*(?:de\s+descuento\s*|promocional\s*)?[:«\"“]?\s*" + CODE_TOKEN + r"\b", re.I),
+    re.compile(r"(?:c[óo]digo|cup[óo]n)\s*(?:de\s+descuento\s*|promocional\s*)?[:«\"“]?\s*" + CODE_TOKEN + r"[»\"”]?\s*[^.\n]{0,40}?env[íi]o\s+(?:gratis|gratuito)", re.I),
+]
+
+
+def shipping_info(text: str, lang: str = "fr") -> tuple[Optional[float], list[str], str]:
     """(seuil de livraison offerte en €, codes « livraison offerte », extrait) lus dans une page du site.
 
     Le seuil le plus souvent cité l'emporte (un bandeau répété sur la page compte plusieurs fois)."""
     counts: dict[float, int] = {}
     evidence = ""
-    for rx in FREE_FROM:
+    for rx in FREE_FROM + (FREE_FROM_ES if lang == "es" else []):
         for m in rx.finditer(text):
             v = float((m.group(1) or m.group(2)).replace(",", "."))
             if 5 <= v <= 300:
                 counts[v] = counts.get(v, 0) + 1
                 evidence = evidence or re.sub(r"\s+", " ", m.group(0))[:160]
     threshold = max(counts, key=lambda k: (counts[k], -k)) if counts else None
-    if threshold is None and (m := FREE_ALWAYS.search(text)):
+    if threshold is None and (m := FREE_ALWAYS.search(text) or (FREE_ALWAYS_ES.search(text) if lang == "es" else None)):
         threshold, evidence = 0.0, re.sub(r"\s+", " ", m.group(0))[:160]
     codes = []
-    for rx in FREE_CODE:
+    stop = _stop(lang)
+    for rx in FREE_CODE + (FREE_CODE_ES if lang == "es" else []):
         for m in rx.finditer(text):
             c = m.group(1)
-            if c not in STOP and c not in codes and (re.search(r"\d", c) or len(c) >= 5):
+            if c not in stop and c not in codes and (re.search(r"\d", c) or len(c) >= 5):
                 codes.append(c)
     return threshold, codes, evidence
 
 
 def collect_site_shipping(site: Site, client: Optional[PoliteClient] = None) -> tuple[Optional[float], list[str], str]:
     own = client is None
-    client = client or PoliteClient(delay_seconds=site.delay_seconds)
+    client = client or PoliteClient(delay_seconds=site.delay_seconds, language=site.language)
     pages = [site.root + "/"] + [u if u.startswith("http") else site.base_url.rstrip("/") + u
                                  for u in (site.filters or {}).get("shipping_pages", [])]
     best: tuple[Optional[float], list[str], str] = (None, [], "")
@@ -260,7 +309,7 @@ def collect_site_shipping(site: Site, client: Optional[PoliteClient] = None) -> 
                 continue
             if resp is None:
                 continue
-            th, codes, ev = shipping_info(html_to_text(resp.text))
+            th, codes, ev = shipping_info(html_to_text(resp.text), site.language)
             if th is not None and best[0] is None:
                 best = (th, best[1], ev)
             best = (best[0], list(dict.fromkeys(best[1] + codes)), best[2])

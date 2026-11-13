@@ -1,0 +1,20 @@
+# Pays connus de la collecte : seed() insère chacun dans la table countries.
+# code     : code ISO 3166-1 alpha-2 (le même que `country` dans sites.yaml et codes.yaml)
+# language : langue par défaut des fiches (les sites peuvent la préciser avec `language`)
+# vat_rate : TVA des compléments alimentaires (information ; les prix collectés sont TTC)
+countries:
+  - code: FR
+    name: France
+    currency: EUR
+    vat_rate: 0.2          # valeur historique de seed(), conservée telle quelle
+    language: fr
+
+  - code: ES
+    name: España
+    currency: EUR
+    # IVA réduit de 10 % pour les « complementos alimenticios » au sens du Real Decreto 1487/2009
+    # (art. 91.Uno.1.1º de la Ley 37/1992) ; à défaut de cette qualification : 21 %.
+    # Source : consultation DGT du 11/12/2023 (aceites hipocalóricos ayant la consideración de complementos
+    # alimenticios → 10 %), https://primeralecturaediciones.com/?p=40360 (vérifié le 13/11/2026).
+    vat_rate: 0.1
+    language: es

@@ -41,11 +41,37 @@ _MADE = (r"(?:(?:con[çc]ue?s?|d[ée]velopp[ée]e?s?|formul[ée]e?s?|conditionn[
 _ADJ = {"FR": r"fabrication\s+(?:100\s*%\s*)?fran[çc]aise|origine\s+france\s+garantie|🇫🇷\s*fabriqu"}
 _NEG = re.compile(r"\b(?:pas|non|ni)\b[^.\n]{0,15}$", re.I)
 
+# --- espagnol : ajouté aux règles françaises pour les sites en espagnol
+COUNTRIES_ES = {
+    "FR": r"francia", "BE": r"b[ée]lgica", "DE": r"alemania", "IT": r"italia", "ES": r"espa[ñn]a", "NL": r"pa[íi]ses bajos|holanda",
+    "PL": r"polonia", "HU": r"hungr[íi]a", "GB": r"(?:el\s+)?reino unido|inglaterra", "CH": r"suiza", "AT": r"austria",
+    "SE": r"suecia", "IE": r"irlanda", "US": r"(?:los\s+)?estados unidos|ee\.?\s?uu\.?", "CA": r"canad[áa]",
+}
+# « fabricado en España », « elaborado en », « hecho en », « se fabrica en el Reino Unido », « desarrollado y fabricado en
+# Alemania ». « Producida en » n'est pas retenu : sur les fiches, il désigne la matière première (« Creapure producida en Alemania »).
+_MADE_ES = (r"(?:(?:dise[ñn]ad[oa]s?|desarrollad[oa]s?|formulad[oa]s?|envasad[oa]s?)\s+y\s+)?"
+            r"(?:(?:fabricad[oa]s?|elaborad[oa]s?|hech[oa]s?|manufacturad[oa]s?|se\s+(?:fabrica|elabora|hace)n?)"
+            r"(?:\s+(?:exclusivamente|[úu]nicamente|[íi]ntegramente|enteramente|100\s*%|localmente|aqu[íi]|"
+            r"en nuestras? (?:f[áa]bricas?|instalaciones|laboratorios?)))?)"
+            r"\s+(?:en|in)\s+(?:el\s+|los\s+)?")
+_ADJ_ES = {"ES": r"fabricaci[óo]n\s+(?:100\s*%\s*)?espa[ñn]ola"}
+_NEG_ES = re.compile(r"\b(?:no|ni)\b[^.\n]{0,15}$", re.I)
 
-def detect_origin(body_html: str, title: str = "") -> tuple[Optional[str], Optional[str]]:
+
+def detect_origin(body_html: str, title: str = "", lang: str = "fr") -> tuple[Optional[str], Optional[str]]:
     """(code pays, extrait qui le prouve), ou (None, None) si la fiche ne le dit pas clairement."""
     text = (title + "\n" + html_to_text(body_html or "")).replace(" ", " ")
     hits: list[tuple[int, str, str]] = []
+    if lang == "es":
+        for code, names in COUNTRIES.items():
+            names = names + ("|" + COUNTRIES_ES[code] if code in COUNTRIES_ES else "")
+            for m in re.finditer(r"(?:" + _MADE_ES + r"|(?:pa[íi]s|lugar) de (?:fabricaci[óo]n|producci[óo]n)\s*[:|]\s*|made in:?\s*)(?:"
+                                 + names + r")\b", text, re.I):
+                if _NEG_ES.search(text[max(0, m.start() - 20):m.start()]):
+                    continue                              # « no está fabricado en España »
+                hits.append((m.start(), code, m.group(0)))
+            if code in _ADJ_ES:
+                hits += [(m.start(), code, m.group(0)) for m in re.finditer(_ADJ_ES[code], text, re.I)]
     for code, names in COUNTRIES.items():
         for m in re.finditer(r"(?:" + _MADE + r"|(?:pays|lieu) de (?:fabrication|production)\s*[:|]\s*|made in:?\s*)(?:" + names + r")\b",
                              text, re.I):
@@ -80,7 +106,7 @@ def sentence_around(text: str, start: int, end: int, limit: int = 160) -> str:
     return s[:200]
 
 
-def origin_text_from_page(page: str) -> str:
+def origin_text_from_page(page: str, lang: str = "fr") -> str:
     """Endroits de la page où les marques écrivent l'origine hors description : méta-descriptions et zone d'achat
     (badges « Fabriqué en France » sous le bouton). Pas la page entière : menus et pieds de page ont souvent une
     rubrique « Made in France » qui ne dit rien du produit affiché."""
@@ -93,6 +119,8 @@ def origin_text_from_page(page: str) -> str:
     text = html.unescape(re.sub(r"<[^>]+>", " ", clean))
     text = re.sub(r"\s+", " ", text)
     m = re.search(r"ajouter au panier|add to cart|acheter maintenant|buy now", text, re.I)
+    if not m and lang == "es":
+        m = re.search(r"a[ñn]adir al carrito|a[ñn]adir a la cesta|comprar ahora", text, re.I)
     if m:
         parts.append(text[max(0, m.start() - 600):m.end() + 600])
     return "\n".join(f"<p>{html.escape(p)}</p>" for p in parts)

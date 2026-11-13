@@ -25,18 +25,25 @@ class FetchError(Exception):
         self.url, self.status = url, status
 
 
+# En-tête Accept-Language selon la langue du site (français : inchangé).
+ACCEPT_LANGUAGE = {"fr": "fr-FR,fr;q=0.9", "es": "es-ES,es;q=0.9", "de": "de-DE,de;q=0.9", "en": "en-GB,en;q=0.9",
+                   "it": "it-IT,it;q=0.9", "nl": "nl-NL,nl;q=0.9", "pl": "pl-PL,pl;q=0.9", "sv": "sv-SE,sv;q=0.9",
+                   "pt": "pt-PT,pt;q=0.9"}
+
+
 class PoliteClient:
     """Un client par site : une requête à la fois, pause entre deux requêtes."""
 
     def __init__(self, delay_seconds: float = 2.0, timeout: float = 30.0, max_retries: int = 3,
-                 respect_robots: bool = True, transport: Optional[httpx.BaseTransport] = None):
+                 respect_robots: bool = True, transport: Optional[httpx.BaseTransport] = None,
+                 language: str = "fr"):
         self.delay = delay_seconds
         self.max_retries = max_retries
         self.respect_robots = respect_robots
         self._last = 0.0
         self._robots: dict[str, Optional[RobotsRules]] = {}
         self.client = httpx.Client(
-            headers={"User-Agent": USER_AGENT, "Accept-Language": "fr-FR,fr;q=0.9"},
+            headers={"User-Agent": USER_AGENT, "Accept-Language": ACCEPT_LANGUAGE.get(language or "fr", ACCEPT_LANGUAGE["fr"])},
             timeout=timeout, follow_redirects=True, transport=transport,
         )
         self.requests_made = 0

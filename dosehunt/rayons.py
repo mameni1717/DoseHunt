@@ -42,6 +42,34 @@ NOT_A_RAYON = re.compile(r"blog|conseil|guide|recette|actualit|magazine|article|
                          r"low-carb|tags/|promo|outlet|nouveaut|cadeau|-gh\b|hormon|sommeil|immun", re.I)
 
 
+# Espagnol : ajouté aux mots français pour les sites en espagnol.
+KEYWORDS_ES = {
+    "preworkout": r"pre[- ]?entreno|pre[- ]?workout",
+    "creatine": r"creatina",
+    "whey": r"prote[íi]nas?[- ](?:de[- ]suero|en[- ]polvo|vegetal(?:es)?|veganas?|whey)|aislado|case[íi]nas?",
+    "collagene": r"col[áa]geno",
+    "barres": r"barritas?(?:[- ]de)?[- ]prote|barritas?[- ]proteicas?|barras?[- ](?:de[- ])?prote",
+    "magnesium": r"magnesio",
+    "vitamine_d": r"vitaminas?[- ]d3?\b",
+    "vitamine_c": r"vitaminas?[- ]c\b",
+    "omega3": r"aceites?[- ]de[- ]pescado",
+    "glutamine": r"glutamina",
+}
+NOT_A_RAYON_ES = re.compile(r"consejo|gu[íi]a|receta|noticia|revista|art[íi]culo|opiniones|rese[ñn]as|marcas/|cuenta|carrito|"
+                            r"cesta|contacto|env[íi]os?|condiciones|aviso-legal|sexual|testosterona|sin-|\blote|"
+                            r"mas-vendidos|m[áa]s-vendidos|ofertas?|rebajas|novedades|regalo|sue[ñn]o|descanso|inmun|defensas", re.I)
+
+
+def keywords(lang: str = "fr") -> dict[str, str]:
+    if lang != "es":
+        return KEYWORDS
+    return {k: v + ("|" + KEYWORDS_ES[k] if k in KEYWORDS_ES else "") for k, v in KEYWORDS.items()}
+
+
+def not_a_rayon(url: str, lang: str = "fr") -> bool:
+    return bool(NOT_A_RAYON.search(url) or (lang == "es" and NOT_A_RAYON_ES.search(url)))
+
+
 def load() -> dict[str, dict[str, list[str]]]:
     if not RAYONS_FILE.exists():
         return {}
@@ -58,7 +86,7 @@ def detect(site, client, product_rx: Optional[re.Pattern] = None) -> dict[str, l
     found: dict[str, list[str]] = {}
     for m in re.finditer(r'<a\b[^>]*href="([^"#]+)"[^>]*>(.*?)</a>', resp.text, re.I | re.S):
         url = urljoin(start, htmllib.unescape(m.group(1))).split("?")[0].rstrip("/")
-        if urlsplit(url).netloc != host or NOT_A_RAYON.search(url):
+        if urlsplit(url).netloc != host or not_a_rayon(url, getattr(site, "language", "fr")):
             continue
         if product_rx is not None and product_rx.search(url):
             continue                                        # fiche produit, pas un rayon
@@ -70,7 +98,7 @@ def detect(site, client, product_rx: Optional[re.Pattern] = None) -> dict[str, l
             continue
         text = re.sub(r"<[^>]+>|\s+", " ", htmllib.unescape(m.group(2))).strip()
         slug = urlsplit(url).path.rsplit("/", 1)[-1]
-        for cat, rx in KEYWORDS.items():
+        for cat, rx in keywords(getattr(site, "language", "fr")).items():
             if re.search(rx, text, re.I) or re.search(rx, slug.replace("-", " "), re.I):
                 lst = found.setdefault(cat, [])
                 if url not in lst and len(lst) < 4:

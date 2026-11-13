@@ -241,7 +241,7 @@ class PrestaShopCollector(Collector):
             return True                  # vu seulement dans le sitemap : on ouvre la fiche pour savoir
         probe = RawProduct(site_id=self.site.id, external_id="", handle="", title=meta["name"], url="",
                            product_type=meta["category"])
-        return bool(classify(probe))
+        return bool(classify(probe, lang=self.site.language))
 
     # -- fiche ------------------------------------------------------------
     def fetch_product(self, url: str, meta: dict) -> Optional[RawProduct]:

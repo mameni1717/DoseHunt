@@ -658,7 +658,7 @@ class PageCollector(Collector):
         if self.cfg.get("prefilter_url"):
             from ..classify import classify             # import tardif : classify importe aussi collectors
             urls = [u for u in urls if classify(RawProduct(site_id=self.site.id, external_id="", handle="",
-                                                            title=_words(u), url=u))]
+                                                            title=_words(u), url=u), lang=self.site.language)]
         return urls
 
     # -- fiche ------------------------------------------------------------

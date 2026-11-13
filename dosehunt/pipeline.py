@@ -17,7 +17,7 @@ from sqlalchemy.engine import Connection, Engine
 from . import checks, db, extract, llm
 from .classify import classify, passes_site_filters
 from .collectors import collector_for
-from .config import Site, categories, codes_config, sites
+from .config import Site, categories, codes_config, countries, sites
 from .formats import merge, parse_format, variant_flavour, variant_format
 from .models import ActiveContent, Format, RawProduct, ReviewItem, now_utc
 from .pricing import Code, best_code, compute
@@ -51,10 +51,12 @@ def upsert_many(conn: Connection, table, rows: list[dict], keys: list[str]) -> N
     conn.execute(ins.on_conflict_do_update(index_elements=keys, set_={c: ins.excluded[c] for c in cols}))
 
 
-def canonical_key(brand: Optional[str], name: str) -> str:
+def canonical_key(brand: Optional[str], name: str, lang: str = "fr") -> str:
     s = f"{brand or ''} {name}".lower()
     s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
     s = re.sub(r"\b\d+(?:[.,]\d+)?\s*(?:kg|g|gr|ml|mg|gelules?|comprimes?|capsules?|caps|tabs?|barres?)\b", " ", s)
+    if lang == "es":                 # « 90 cápsulas », « 60 comprimidos », « 12 barritas » (accents déjà retirés)
+        s = re.sub(r"\b\d+(?:[.,]\d+)?\s*(?:capsulas?|comprimidos?|tabletas?|perlas|barritas?|raciones|dosis)\b", " ", s)
     s = re.sub(r"[^a-z0-9]+", " ", s)
     return " ".join(s.split())[:255]
 
@@ -62,15 +64,25 @@ def canonical_key(brand: Optional[str], name: str) -> str:
 def seed(engine: Engine) -> None:
     """Pays, sites et codes promo depuis la configuration."""
     with engine.begin() as conn:
-        upsert(conn, db.countries, {"code": "FR", "name": "France", "currency": "EUR", "vat_rate": 0.2, "language": "fr"}, ["code"])
+        known = countries()
+        for code, c in known.items():                   # config/countries.yaml : FR, ES…
+            upsert(conn, db.countries, {"code": code, "name": c["name"], "currency": c.get("currency", "EUR"),
+                                        "vat_rate": c.get("vat_rate"), "language": c.get("language")}, ["code"])
         for s in sites().values():
+            if s.country not in known:                  # pays d'un site absent du fichier : ligne minimale (clé étrangère)
+                upsert(conn, db.countries, {"code": s.country, "name": s.country, "currency": s.currency,
+                                            "vat_rate": None, "language": s.language}, ["code"])
+                known[s.country] = {}
             upsert(conn, db.sites, {"id": s.id, "name": s.name, "platform": s.platform,
                                     "collector": s.collector, "status": s.status, "base_url": s.root,
-                                    "affiliate_template": s.affiliate_template or None}, ["id"])
+                                    "affiliate_template": s.affiliate_template or None,
+                                    "country": s.country, "language": s.language}, ["id"])
             upsert(conn, db.site_domains, {"site_id": s.id, "country": s.country, "base_url": s.root}, ["site_id", "country"])
+        all_sites = sites()
         for c in codes_config().get("codes", []):
+            site_country = all_sites[c["site"]].country if c["site"] in all_sites else "FR"
             upsert(conn, db.promo_codes, {
-                "site_id": c["site"], "country": c.get("country", "FR"), "code": c["code"],
+                "site_id": c["site"], "country": c.get("country") or site_country, "code": c["code"],
                 "discount_type": c.get("discount_type", "percent"), "value": c["value"],
                 "min_order": c.get("min_order"), "first_order_only": c.get("first_order_only", False),
                 "stackable_with_sale": c.get("stackable_with_sale", True), "applies_to": c.get("applies_to", "all"),
@@ -83,6 +95,15 @@ def seed(engine: Engine) -> None:
 
 
 SAMPLE = re.compile(r"[ée]chantillon|\bsample\b|\bmonodose\b|\btesteur\b|\b1\s*portions?\b", re.I)
+SAMPLE_LANG = {"es": re.compile(r"\bmuestras?\b|\bmonodosis\b|\b1\s*(?:porci[óo]n|raci[óo]n|dosis)\b", re.I)}
+
+
+def is_sample(label: str, lang: str = "fr") -> bool:
+    """Échantillon d'une portion (« échantillon », « muestra », « monodosis ») : sans intérêt pour un prix au kilo."""
+    if SAMPLE.search(label or ""):
+        return True
+    rx = SAMPLE_LANG.get(lang)
+    return bool(rx and rx.search(label or ""))
 
 AUTO_CONFIDENCE = 0.75        # code affiché par le site lui-même
 UP_TO_CONFIDENCE = 0.4        # « jusqu'à -36 % » : sous le seuil, affiché mais pas appliqué
@@ -221,7 +242,7 @@ class SiteCache:
 
 
 # À incrémenter quand les règles de lecture des fiches changent : toutes les fiches sont relues une fois.
-RULES_VERSION = "2026-11-13"
+RULES_VERSION = "2026-11-14-es"          # règles par langue (français inchangé, espagnol ajouté)
 
 
 def _body_hash(p: RawProduct) -> str:
@@ -243,7 +264,8 @@ def _review(conn: Connection, stats: RunStats, item: ReviewItem, category: Optio
 
 def _resolve_active(conn: Connection, p: RawProduct, product_id: int, category: str, sub, combined: bool,
                     body_changed: bool, sample_fmt: Format, stats: RunStats, use_llm: bool,
-                    reextract: bool = False, fetch_page=None, cache: Optional[SiteCache] = None) -> Optional[ActiveContent]:
+                    reextract: bool = False, fetch_page=None, cache: Optional[SiteCache] = None,
+                    lang: str = "fr") -> Optional[ActiveContent]:
     from .config import manual_for
     manual = manual_for(p.site_id, p.external_id, p.title, category)
     if manual:
@@ -272,7 +294,7 @@ def _resolve_active(conn: Connection, p: RawProduct, product_id: int, category: 
     if existing and not body_changed and not reextract and existing["status"] == "review":
         return None                                  # déjà en attente de revue, inutile de relire
 
-    ac = extract.extract(category, p.body_html, p.title, sample_fmt)
+    ac = extract.extract(category, p.body_html, p.title, sample_fmt, lang)
     if (ac is None or checks.check_active(ac)) and fetch_page is not None and p.source == "shopify_json":
         # La description du catalogue JSON n'a souvent pas la composition : elle est dans les onglets de la page.
         page_html = fetch_page(p.url)
@@ -283,7 +305,7 @@ def _resolve_active(conn: Connection, p: RawProduct, product_id: int, category: 
             from .collectors.base import format_hint
             if (hint := format_hint(page_html)):
                 p.body_html += f"\n<p>Contenance : {hint}</p>"
-            retry = extract.extract(category, zone, p.title, sample_fmt)
+            retry = extract.extract(category, zone, p.title, sample_fmt, lang)
             if retry is not None and (ac is None or not checks.check_active(retry)):
                 ac = retry
                 stats.pages_fetched += 1
@@ -323,7 +345,7 @@ def _resolve_active(conn: Connection, p: RawProduct, product_id: int, category: 
     return ac
 
 
-def _fill_units(fmt: Format, ac: Optional[ActiveContent], p: RawProduct) -> Format:
+def _fill_units(fmt: Format, ac: Optional[ActiveContent], p: RawProduct, lang: str = "fr") -> Format:
     """Formats en durée (« 3 mois ») ou sans nombre d'unités : on complète depuis la fiche."""
     if fmt.total_units is None and fmt.months and ac and ac.units_per_dose:
         fmt.units = int(round(fmt.months * 30 * ac.units_per_dose))
@@ -331,19 +353,19 @@ def _fill_units(fmt: Format, ac: Optional[ActiveContent], p: RawProduct) -> Form
     if fmt.total_units is None and fmt.months:
         return fmt      # durée sans dose journalière connue : un « pilulier de 90 » ne vaut pas pour toutes les durées
     if fmt.total_units is None and fmt.grams is None:
-        grams, units = extract.content_from_text(p.body_html)
+        grams, units = extract.content_from_text(p.body_html, lang)
         if grams or units:
             fmt.grams, fmt.units = grams, units
             fmt.unit_word = fmt.unit_word or ("gélule" if units else None)
             fmt.confidence = min(fmt.confidence or 0.7, 0.7)
     if fmt.total_units is None and fmt.grams is None and (ac is None or ac.category != "barres"):
-        n = extract.units_from_text(p.body_html)   # « boîte de 60 gélules » : pas pour les barres
+        n = extract.units_from_text(p.body_html, lang)   # « boîte de 60 gélules » : pas pour les barres
         if n:
             fmt.units, fmt.confidence = n, min(fmt.confidence or 0.7, 0.7)
     return fmt
 
 
-def _format_from_text(fmt: Format, p: RawProduct, basis: str, category: str, n_variants: int) -> Format:
+def _format_from_text(fmt: Format, p: RawProduct, basis: str, category: str, n_variants: int, lang: str = "fr") -> Format:
     """Libellé muet sur le poids ou le nombre d'unités : on le cherche dans le texte de la fiche.
 
     « 120 portions » + « Dose : 30 g » = 3,6 kg ; « Poids net : 500 g » ; « Boîte de 60 gélules ».
@@ -354,13 +376,13 @@ def _format_from_text(fmt: Format, p: RawProduct, basis: str, category: str, n_v
         return fmt
     text = extract.html_to_text(p.body_html or "")
     if basis in ("per_100g", "per_serving") and fmt.total_grams is None:
-        size = extract.serving_size(text)
+        size = extract.serving_size(text, lang)
         if fmt.total_units and fmt.unit_word in ("dose", "stick", None) and size:
             fmt.grams, fmt.units, fmt.unit_word = round(fmt.total_units * size, 1), None, None
             fmt.confidence = max(min(fmt.confidence or 0.75, 0.75), 0.6)
             return fmt
         if n_variants == 1 or fmt.confidence == 0:
-            grams, _ = extract.content_from_text(p.body_html)
+            grams, _ = extract.content_from_text(p.body_html, lang)
             if grams is None:
                 m = re.search(r"Contenance\s*:\s*([\d.,]+)\s*(kg|g)\b", text, re.I)      # format le plus cité sur la page
                 if m:
@@ -368,8 +390,8 @@ def _format_from_text(fmt: Format, p: RawProduct, basis: str, category: str, n_v
             if grams and 20 <= grams <= 15000:
                 fmt.grams, fmt.confidence = grams, max(fmt.confidence, 0.7)
     elif basis == "per_unit" and fmt.total_units is None and category != "barres" and (n_variants == 1 or fmt.confidence == 0):
-        _, units = extract.content_from_text(p.body_html)
-        units = units or extract.units_from_text(p.body_html)
+        _, units = extract.content_from_text(p.body_html, lang)
+        units = units or extract.units_from_text(p.body_html, lang)
         if units:
             fmt.units, fmt.unit_word, fmt.confidence = units, fmt.unit_word or "gélule", max(fmt.confidence, 0.7)
     return fmt
@@ -410,15 +432,19 @@ class _Prev:
 
 
 def _variant_fmt(p: RawProduct, v, cl, ac: Optional[ActiveContent], basis: str, prefer_units: bool,
-                 p_hint: Optional[Format]) -> Format:
+                 p_hint: Optional[Format], lang: str = "fr") -> Format:
     """Format d'une variante (poids, unités) à partir du libellé, de la fiche et de la teneur lue."""
-    fmt = _fill_units(variant_format(p, v, prefer_units=prefer_units), ac, p)
-    if (cl.category == "barres" and fmt.total_units is None and re.match(r"\s*barre\b", p.title, re.I)
+    es = lang == "es"
+    fmt = _fill_units(variant_format(p, v, prefer_units=prefer_units), ac, p, lang)
+    if (cl.category == "barres" and fmt.total_units is None
+            and re.match(r"\s*barre\b" + (r"|\s*barrita\b" if es else ""), p.title, re.I)
             and v.price <= 6                                    # prix d'une barre, pas d'une boîte
-            and not re.search(r"\bbarres\b|\blot\b|\bbo[iî]te\b|\bpack\b", p.title + " " + v.title, re.I)):
+            and not re.search(r"\bbarres\b|\blot\b|\bbo[iî]te\b|\bpack\b" + (r"|\bbarritas\b|\blote\b|\bcaja\b" if es else ""),
+                              p.title + " " + v.title, re.I)):
         fmt.units, fmt.unit_word, fmt.confidence = 1, "barre", 0.6     # « Barre … » vendue à l'unité
     if cl.category == "barres" and fmt.total_units is None:
-        mb = re.search(r"(?:bo[iî]te|lot|pack|carton|display)\s+de\s+(\d{1,3})\b(?!\s*(?:g|gr|kg)\b)", v.title, re.I)
+        mb = re.search(r"(?:bo[iî]te|lot|pack|carton|display" + (r"|caja|lote" if es else "") + r")\s+de\s+(\d{1,3})\b(?!\s*(?:g|gr|kg)\b)",
+                       v.title, re.I)
         if mb:                                                       # Optigura : « Boite de 12 »
             fmt.units, fmt.unit_word = int(mb.group(1)), "barre"
             fmt.confidence = max(fmt.confidence, 0.8)
@@ -426,12 +452,14 @@ def _variant_fmt(p: RawProduct, v, cl, ac: Optional[ActiveContent], basis: str, 
         fmt = merge(p_hint, fmt)
         fmt.confidence = min(fmt.confidence or 0.7, 0.7)
     if cl.category == "barres" and fmt.total_units is None:
-        m_b = re.search(r"(\d{1,3})\s*barres", p.title + " " + extract.html_to_text(p.body_html)[:2000], re.I)
-        if m_b and int(m_b.group(1)) > 1 and not fmt.grams:
-            fmt.units, fmt.unit_word = int(m_b.group(1)), "barre"
+        m_b = re.search(r"(\d{1,3})\s*barres" + (r"|(\d{1,3})\s*barritas" if es else ""),
+                        p.title + " " + extract.html_to_text(p.body_html)[:2000], re.I)
+        nb = m_b and (m_b.group(1) or m_b.group(m_b.lastindex))
+        if nb and int(nb) > 1 and not fmt.grams:
+            fmt.units, fmt.unit_word = int(nb), "barre"
     if cl.category == "barres" and fmt.total_units is None and fmt.grams and fmt.grams <= 150:
         fmt.units, fmt.unit_grams, fmt.grams, fmt.unit_word = 1, fmt.grams, None, "barre"   # « 60g » : une barre
-    fmt = _format_from_text(fmt, p, basis, cl.category, len(p.variants))
+    fmt = _format_from_text(fmt, p, basis, cl.category, len(p.variants), lang)
     if ac and ac.basis == "per_unit" and ac.category in ("creatine", "collagene", "glutamine") and fmt.total_units is None:
         fmt.confidence = 0
     return fmt
@@ -462,6 +490,7 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
                     *, use_llm: bool = True, reextract: bool = False, fetch_page=None,
                     cache: Optional[SiteCache] = None) -> None:
     stats.products_seen += 1
+    lang = site.language or "fr"
     ok, why = passes_site_filters(p, site)
     if not ok:
         return
@@ -481,7 +510,7 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
     body_changed = prev is None or prev.body_hash != bh
     product_id = upsert(conn, db.products, {
         "site_id": site.id, "external_id": p.external_id, "handle": p.handle, "brand": p.vendor,
-        "name": p.title, "product_type": p.product_type, "canonical_key": canonical_key(p.vendor, p.title),
+        "name": p.title, "product_type": p.product_type, "canonical_key": canonical_key(p.vendor, p.title, lang),
         "url": p.url, "body_hash": bh, "tags": p.tags, "first_seen": now, "last_seen": now, "active": True,
     }, ["site_id", "external_id"], update_cols=["handle", "brand", "name", "product_type", "canonical_key",
                                                  "url", "body_hash", "tags", "last_seen", "active"])
@@ -492,20 +521,20 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
     if prev is None or body_changed or reextract:
         from .origin import detect_origin
         from .origin import origin_text_from_page
-        origin, evidence = detect_origin(p.body_html, p.title)
+        origin, evidence = detect_origin(p.body_html, p.title, lang)
         if origin is None and p.origin_text:
-            origin, evidence = detect_origin(p.origin_text)
+            origin, evidence = detect_origin(p.origin_text, lang=lang)
         if origin is None and fetch_page is not None and p.source == "shopify_json":
             page_html = fetch_page(p.url)
             if page_html:
                 from .collectors.page import zone_html
-                origin, evidence = detect_origin(zone_html(page_html), p.title)
+                origin, evidence = detect_origin(zone_html(page_html), p.title, lang)
                 if origin is None:
-                    origin, evidence = detect_origin(origin_text_from_page(page_html))
+                    origin, evidence = detect_origin(origin_text_from_page(page_html, lang), lang=lang)
         from .details import page_extras
         extras = {"image_url": p.image_url, "rating": p.rating, "review_count": p.review_count}
         if p.source == "shopify_json" and fetch_page is not None and (page_cached := getattr(fetch_page, "cache", {}).get(p.url)):
-            pe = page_extras(page_cached)                # avis Judge.me / Yotpo : seulement dans la page
+            pe = page_extras(page_cached)                # avis Judge.me / Yotpo : seulement dans la page (photo, note : sans langue)
             extras = {k: extras[k] or pe[k] for k in extras}
         late.update(origin_country=origin, origin_evidence=evidence, **extras)
 
@@ -514,8 +543,8 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
     if p.variants and fetch_page is not None and p.source == "shopify_json" and hint is None:
         probe = variant_format(p, p.variants[0], prefer_units=True)
         if probe.total_grams is None and probe.total_units is None and probe.months is None:
-            grams, units = extract.content_from_text(p.body_html)
-            n = units or extract.units_from_text(p.body_html)
+            grams, units = extract.content_from_text(p.body_html, lang)
+            n = units or extract.units_from_text(p.body_html, lang)
             if not grams and not n:
                 page_html = fetch_page(p.url)
                 if page_html:
@@ -523,8 +552,8 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
                     zone = zone_html(page_html)
                     p.body_html = (p.body_html or "") + "\n" + zone
                     stats.pages_fetched += 1
-                    grams, units = extract.content_from_text(zone)
-                    n = units or extract.units_from_text(zone)
+                    grams, units = extract.content_from_text(zone, lang)
+                    n = units or extract.units_from_text(zone, lang)
             hint = f"{grams:g} g" if grams else f"{n} gélules" if n else None
             if hint:
                 late["content_hint"] = hint
@@ -536,18 +565,18 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
     written_last: dict = {}                               # offer_id → (prix, disponible) relevé pendant ce produit
     for cl in found:
         basis = cats[cl.category]["basis"]
-        powder = bool(re.search(r"\bpoudre\b|\bpowder\b", p.title, re.I))
+        powder = bool(re.search(r"\bpoudre\b|\bpowder\b" + (r"|\ben polvo\b|\bpolvo\b" if lang == "es" else ""), p.title, re.I))
         # Barres : un nombre nu est un poids (« 48 » = barre de 48 g) ; poudre : un nombre nu est un poids aussi.
         prefer_units = (basis == "per_unit" or cl.category in ("creatine", "collagene", "glutamine")) and cl.category != "barres" and not powder
         sample_fmt = variant_format(p, p.variants[0], prefer_units=prefer_units) if p.variants else Format()
         ac = _resolve_active(conn, p, product_id, cl.category, cl.subcategory, cl.combined,
-                             body_changed, sample_fmt, stats, use_llm, reextract, fetch_page, cache)
+                             body_changed, sample_fmt, stats, use_llm, reextract, fetch_page, cache, lang)
         # 1. Format de chaque variante (aucune requête)
         variants: list[tuple] = []
         for v in p.variants:
-            if SAMPLE.search(v.title or ""):
+            if is_sample(v.title or "", lang):
                 continue                    # échantillon d'une portion : sans intérêt pour un prix au kilo
-            variants.append((v, _variant_fmt(p, v, cl, ac, basis, prefer_units, p_hint)))
+            variants.append((v, _variant_fmt(p, v, cl, ac, basis, prefer_units, p_hint, lang)))
         # 2. Toutes les offres du produit en une requête (l'identifiant revient avec l'écriture)
         offer_ids = _upsert_offers(conn, site, p, product_id, variants, now)
         if cache is not None:
@@ -617,13 +646,13 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
 
     # Ingrédients, valeurs nutritionnelles, attributs : relus à chaque passage, après la lecture éventuelle de la page (simple lecture du texte déjà relevé),
     # pour profiter tout de suite d'une règle améliorée sans attendre que la fiche change.
-    vals = product_details(p.body_html, p.title)
+    vals = product_details(p.body_html, p.title, lang)
     page_for_reviews = p.page_html or getattr(fetch_page, "cache", {}).get(p.url) or ""
     if not page_for_reviews and p.source == "shopify_json" and fetch_page is not None and (prev is None or body_changed):
         page_for_reviews = fetch_page(p.url) or ""         # avis Shopify : seulement dans la page, lue une fois
     if page_for_reviews:
         from .details import review_topics
-        vals["review_topics"] = review_topics(page_for_reviews)
+        vals["review_topics"] = review_topics(page_for_reviews, lang)
     if p.image_url or p.rating is not None:
         vals.update({k: v for k, v in {"image_url": p.image_url, "rating": p.rating, "review_count": p.review_count}.items() if v is not None})
     conn.execute(update(db.products).where(db.products.c.id == product_id).values(**{**late, **vals}))
@@ -633,9 +662,13 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
 
 # --------------------------------------------------------------------------- un site
 
-def top_product_urls(engine: Engine, site_id: str, n: int) -> list[str]:
-    """Fiches de ce site présentes dans le top n d'au moins une catégorie ou sous-catégorie (mode par défaut)."""
+def top_product_urls(engine: Engine, site_id: str, n: int, country: Optional[str] = None) -> list[str]:
+    """Fiches de ce site présentes dans le top n d'au moins une catégorie ou sous-catégorie (mode par défaut).
+
+    Le classement est celui du pays du site (le top 50 espagnol ne se mesure pas aux offres françaises)."""
     cats = categories()
+    if country is None:
+        country = sites()[site_id].country if site_id in sites() else "FR"
     col = {"dose": db.index_rows.c.dose_value, "kg": db.index_rows.c.kg_value, "unit": db.index_rows.c.unit_value}
     urls: set[str] = set()
     with engine.connect() as conn:
@@ -646,8 +679,8 @@ def top_product_urls(engine: Engine, site_id: str, n: int) -> list[str]:
                 q = (select(db.offers.c.product_id, db.products.c.url, db.offers.c.site_id, value.label("v"))
                      .select_from(db.index_rows.join(db.offers, db.offers.c.id == db.index_rows.c.offer_id)
                                   .join(db.products, db.products.c.id == db.offers.c.product_id))
-                     .where(and_(db.index_rows.c.category == cid, db.offers.c.active.is_(True),
-                                 db.offers.c.available.is_(True), value.is_not(None)))
+                     .where(and_(db.index_rows.c.category == cid, db.index_rows.c.country == country,
+                                 db.offers.c.active.is_(True), db.offers.c.available.is_(True), value.is_not(None)))
                      .order_by(value))
                 if sub:
                     q = q.where(db.index_rows.c.subcategory == sub)

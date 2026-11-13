@@ -35,9 +35,13 @@ sites = Table(
     Column("affiliate_id", String(120)),
     Column("affiliate_template", Text),
     Column("base_url", String(200)),
+    Column("country", String(2)),        # une entrée par marchand et par pays (myprotein-es) : pays du site
+    Column("language", String(5)),       # langue des fiches (règles de lecture)
 )
 
-site_domains = Table(            # domaine par pays (myprotein.fr ≠ myprotein.de)
+# Domaine par pays. Modèle retenu : une entrée sites.yaml par marchand ET par pays (myprotein-fr, myprotein-es),
+# donc une seule ligne site_domains par site (écrite par seed, lue nulle part ailleurs pour l'instant).
+site_domains = Table(
     "site_domains", metadata,
     Column("site_id", ForeignKey("sites.id"), primary_key=True),
     Column("country", ForeignKey("countries.code"), primary_key=True),
@@ -255,7 +259,8 @@ code_votes = Table(              # retours « ce code marche / ne marche plus »
 
 # Colonnes ajoutées après la première version : ajoutées aux bases existantes au démarrage.
 LATE_COLUMNS = {"promo_codes": {"tiers": "JSON", "origin": "VARCHAR(10)", "evidence": "TEXT", "missed_runs": "INTEGER DEFAULT 0"},
-                "sites": {"affiliate_template": "TEXT", "base_url": "VARCHAR(200)"},
+                "sites": {"affiliate_template": "TEXT", "base_url": "VARCHAR(200)", "country": "VARCHAR(2)",
+                          "language": "VARCHAR(5)"},
                 "products": {"content_hint": "VARCHAR(60)", "origin_country": "VARCHAR(2)",
                              "origin_evidence": "VARCHAR(200)", "image_url": "VARCHAR(500)", "rating": "FLOAT",
                              "review_count": "INTEGER", "ingredients": "TEXT", "nutrition": "JSON",

@@ -1,6 +1,10 @@
 # Les 8 catégories du MVP (liste fixée le 11/11/2026), plus caséine, vitamine C et glutamine (12/11/2026).
 # Classement : un produit entre dans une catégorie si un mot-clé « include » apparaît dans
 # son titre, son type ou ses tags, et aucun mot-clé « exclude ». Expressions régulières, insensibles à la casse.
+# Langues : les listes ci-dessous sont les règles françaises (avec les termes anglais et les marques), inchangées.
+# Un bloc `es:` (espagnol) AJOUTE ses motifs pour les sites dont la langue est `es` (union fr + es) ;
+# les sites français n'utilisent jamais ces blocs. Clés possibles : include, exclude, require_any,
+# product_type_exclude, subcategories (ajoutées à la sous-catégorie de même nom, même ordre de priorité).
 # active      : ce qu'on compare en mode « dose d'actif »
 # basis       : per_100g (poudres) ou per_unit (gélules, barres, capsules)
 # range       : fourchette plausible ; hors fourchette = revue humaine, pas d'entrée dans l'index
@@ -26,6 +30,14 @@ categories:
       clear: ['\bclear\b']    # whey isolat « limonade » : sous-catégorie à part, avant les isolats
       isolate: ['isolate?', '\biso\b', 'isolat', 'hydro']
       classique: []            # par défaut
+    es:
+      include: ['prote[íi]nas? (?:de suero|vegetal(?:es)?|vegana?s?|de guisante|de arroz|de soja)', 'suero de leche', 'aislado de (?:prote[íi]na|suero)', 'prote[íi]nas? hidrolizadas? de suero', 'hidrolizado de (?:prote[íi]na de )?suero', 'case[íi]na', 'micelar']
+      exclude: ['ganador', '\bmass\b', 'sustitutiv', 'adelgaz', 'huevo', 'mantequilla', 'tortitas?', 'galletas?', 'harina', 'avena', 'barritas?', 'bebida', 'batido.*botella', 'botella', 'crema', '\bcream\b', 'amino', 'gominolas?', 'gummies', 'porridge', 'muestra']
+      product_type_exclude: ['Ganadores de peso', 'Sustitutos de comidas', 'Harina', 'Cremas', 'Dulces']
+      subcategories:
+        caseine: ['case[íi]na', 'micelar']
+        vegane: ['vegetal', 'vegana?s?\b', 'guisante', '\barroz\b', 'c[áa][ñn]amo', 'calabaza', 'girasol', 'habas?\b', 'almendra', 'lentejas?', 'garbanzos?']
+        isolate: ['aislad[oa]', 'hidrolizad']
 
   collagene:
     label: Collagène
@@ -39,6 +51,9 @@ categories:
     dose_divisor_g: 1000
     include: ['collag', 'peptan', 'colartix', 'kollagen']
     exclude: ['cr[eè]me', 'shampo', 'masque']
+    es:
+      include: ['col[áa]geno']
+      exclude: ['crema', 'champ[úu]', 'mascarilla', 'serum', 'facial']
 
   barres:
     label: Barres protéinées
@@ -52,6 +67,10 @@ categories:
     include: ['barres?\b', '\bbars?\b', 'protein bar', 'crispy', 'crunch']
     exclude: ['olympique', 'curl', 'traction', 'musculation', 'support de barre', 'rack', 'espalier', 'barreau', 'manchon', '\d+ ?cm\b', 'chrome', 'haltère', 'shaker', '\bcups?\b', '\bpops\b', '\bchips\b']
     require_any: ['prot', 'barre', '\bbar']
+    es:
+      include: ['barritas?\b', 'barras? (?:de )?prote', 'barras? proteicas?']
+      exclude: ['barra ol[íi]mpica', 'dominadas', 'soporte', 'mancuernas?', 'jaula', 'energ[ée]tic', 'avena', 'carbohidrat', 'cereales?', 'flapjack', 'gominolas?']
+      require_any: ['barrit', 'barra']
 
   creatine:
     label: Créatine
@@ -65,6 +84,9 @@ categories:
     dose_divisor_g: 1000
     include: ['cr[ée]atine', 'creapure', '\bcrea\b']
     exclude: ['gummies', 'gummy', 'sticks?\b', 'shaker', 'pre[- ]?workout']
+    es:
+      include: ['creatina']
+      exclude: ['gominolas?', 'pre[- ]?entreno', 'pre[- ]?entrenamiento']
 
   zinc:
     label: Zinc
@@ -77,6 +99,8 @@ categories:
     dose_divisor_mg: 1000
     include: ['\bzinc\b', '\bzma\b', 'zinco', 'optizinc']
     exclude: ['shampo', 'cr[eè]me', 'pommade', 'roues?', 'jantes?', 'v[ée]lo', 'peinture', 'argent zinc']
+    es:
+      exclude: ['champ[úu]', 'crema', 'pomada', 'pintura']
 
   magnesium:
     label: Magnésium
@@ -89,6 +113,8 @@ categories:
     dose_divisor_mg: 1000
     include: ['magn[ée]sium', '\bzma\b', 'magnesio']
     exclude: ['huile de magn', 'spray', 'sels? de bain', 'gel\b']
+    es:
+      exclude: ['aceite de magnesio', 'sales de baño', 'crema']
 
   vitamine_d:
     label: Vitamine D
@@ -101,6 +127,9 @@ categories:
     dose_divisor_ui: 100000
     include: ['vitamine? d3?\b', 'vit\.? ?d3?\b', '\bd3\b', 'cholécalciférol', 'cholecalciferol']
     exclude: ['multivitamin', 'multi-vitamin', 'multivitamine']
+    es:
+      include: ['vitamina d3?\b', 'colecalciferol']
+      exclude: ['multivitam[íi]nico']
 
   omega3:
     label: Oméga-3
@@ -113,6 +142,9 @@ categories:
     dose_divisor_mg: 1000
     include: ['om[ée]ga[ -]?3', '\bepa\b', '\bdha\b', 'krill', 'huile de poisson', 'fish oil', 'epax', 'animal omega']
     exclude: ['om[ée]ga 6', 'om[ée]ga[- ]?3-6-9', 'chia']
+    es:
+      include: ['aceite de pescado', 'aceite de krill']
+      exclude: ['ch[íi]a']
 
   vitamine_c:
     label: Vitamine C
@@ -126,6 +158,10 @@ categories:
     include: ['vitamine? c\b', 'vit\.? ?c\b', 'acide ascorbique', 'ascorbate', 'acerola', 'acérola', 'liposomale']
     exclude: ['multivitamin', 'multi-vitamin', 'multivitamine', 's[ée]rum', 'cr[eè]me', 'shampo', 'visage', 'peau', 'zinc', 'magn[ée]sium', 'collag', 'vitamine d', 'effervescent.*zinc']
     require_any: ['vitamine? c\b', 'vit\.? ?c\b', 'ascorbi', 'ac[ée]rola']
+    es:
+      include: ['vitamina c\b', '[áa]cido (?:l-)?asc[óo]rbico', 'liposomad']
+      exclude: ['multivitam[íi]nico', 'crema', 'facial', 'piel', 'magnesio', 'col[áa]geno', 'vitamina d']
+      require_any: ['vitamina c\b', 'asc[óo]rbi']
 
   glutamine:
     label: Glutamine
@@ -140,6 +176,9 @@ categories:
     serving_g: 5
     include: ['glutamine']
     exclude: ['barre', '\bbar\b', 'gainer', 'bcaa', 'complex', 'recovery', 'shaker']
+    es:
+      include: ['glutamina']
+      exclude: ['barritas?', 'ganador', 'recuperaci[óo]n']
 
   preworkout:
     label: Pré-workout
@@ -151,6 +190,10 @@ categories:
     dose_label: "€/portion"
     include: ['pr[ée][- ]?workout', 'pre[- ]?training', 'pr[ée][- ]?entra[iî]nement', 'booster', '\bpump\b', 'pre[- ]?work']
     exclude: ['shaker', 'gants?', 'ceinture', 'barre', '\bbar\b', 'serviette', 't-shirt', '\bcomprim', 'g[ée]lules?\b', '\bcaps\b', '\btabs\b', '\d+ ?mg\b', '\bshot\b', '\bml\b', 'betterave', '^\s*(?:l-)?(?:citrulline|arginine|aakg|b[êe]ta[- ]?alanine|caf[ée]ine|taurine|tyrosine|nitrate|ornithine)\b', 'drink', 'boisson', '\bgel\b', 'malate de citrulline', 'citrulline malate', '\bbcaa', '\beaa\b', 'greens', 'avoine', 'flocons', 'sirop', 'sauce', 'calori', 'whey', 'prot[ée]ine', 'protein', 'acides? amin', 'collag', 'ribose', 'glutamine', 'spread', 'tartiner', 'vitamine', 'multivitamin', 'électrolyte', 'electrolyte']
+    es:
+      # « sin cafeína » n'est PAS exclu ; « booster » attrape des « colágeno booster » : exclusion colágeno nécessaire.
+      include: ['pre[- ]?entreno', 'pre[- ]?entrenamiento']
+      exclude: ['guantes', 'cintur[óo]n', 'barritas?', 'toalla', 'camiseta', 'comprimidos?', 'c[áa]psulas?', 'tabletas?', 'chupitos?', 'bebidas?', 'remolacha', '^\s*(?:l-)?(?:citrulina|arginina|aakg|beta[- ]?alanina|cafe[íi]na|taurina|tirosina|nitratos?|ornitina)\b', 'malato de citrulina', 'citrulina malato', 'amino[áa]cidos?', 'avena', 'copos', 'siropes?', 'salsas?', 'crema untable', 'para untar', 'calor[íi]', 'prote[íi]na', 'col[áa]geno', 'glutamina', 'vitaminas?\b', 'multivitam', 'electrolitos?', 'verdes', 'gominolas?']
 
 # Produits combinés : quand un produit matche plusieurs catégories, il apparaît dans chacune,
 # avec le badge « produit combiné » et le prix entier attribué à l'actif de la liste.
