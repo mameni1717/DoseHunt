@@ -62,6 +62,17 @@ def passes_site_filters(p: RawProduct, site: Site) -> tuple[bool, str]:
 MIXED_PACK = re.compile(r"\b(pack|coffret|bundle|assortiment|box|kit|routine|programme|cure compl[eè]te|trio)\b", re.I)
 
 
+# Actifs typiques d'un pré-workout : un produit du rayon sans nom explicite doit en citer au moins deux.
+PRE_ACTIVES_RX = [re.compile(x, re.I) for x in (
+    r"caf[ée]ine", r"citrulline", r"b[êe]ta[- ]?alanine", r"arginine", r"b[ée]ta[iï]ne", r"taurine",
+    r"tyrosine", r"nitrate", r"agmatine", r"glyc[ée]rol", r"ornithine", r"guarana")]
+
+
+def looks_preworkout(p: RawProduct) -> bool:
+    text = " ".join([p.title, p.body_html or "", p.page_html or ""])
+    return sum(1 for r in PRE_ACTIVES_RX if r.search(text)) >= 2
+
+
 def classify(p: RawProduct, site: Optional[Site] = None) -> list[Classification]:
     if site is not None and not passes_site_filters(p, site)[0]:
         return []
@@ -94,6 +105,8 @@ def classify(p: RawProduct, site: Optional[Site] = None) -> list[Classification]
                 continue
             if cid == "barres" and not any(r.search(haystack) for r in rx["require_any"]):
                 continue                                    # rayon « barres, boissons et gels » : pas une barre sans le mot
+            if cid == "preworkout" and not looks_preworkout(p):
+                continue                                    # rayon « pré-entraînement » : BCAA, sirops, greens s'y glissent
             sub = None
             if rx["subs"]:
                 title_type = p.title + " " + (p.product_type or "")

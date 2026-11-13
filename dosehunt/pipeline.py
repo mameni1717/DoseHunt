@@ -295,6 +295,19 @@ def _format_from_text(fmt: Format, p: RawProduct, basis: str, category: str, n_v
     return fmt
 
 
+def _drop_old_categories(conn: Connection, site: Site, p: RawProduct, keep: set[str]) -> None:
+    """Produit reclassé (règles resserrées) : ses lignes d'index des catégories quittées sont retirées."""
+    pid = conn.execute(select(db.products.c.id).where(and_(
+        db.products.c.site_id == site.id, db.products.c.external_id == p.external_id))).scalar()
+    if pid is None:
+        return
+    offer_ids = select(db.offers.c.id).where(db.offers.c.product_id == pid)
+    q = delete(db.index_rows).where(db.index_rows.c.offer_id.in_(offer_ids))
+    if keep:
+        q = q.where(db.index_rows.c.category.not_in(keep))
+    conn.execute(q)
+
+
 def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Code], stats: RunStats,
                     *, use_llm: bool = True, reextract: bool = False, fetch_page=None) -> None:
     stats.products_seen += 1
@@ -302,6 +315,7 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
     if not ok:
         return
     found = classify(p, site)
+    _drop_old_categories(conn, site, p, {c.category for c in found})
     if not found:
         return
     stats.products_in_scope += 1
