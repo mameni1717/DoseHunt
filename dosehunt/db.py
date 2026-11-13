@@ -93,7 +93,7 @@ product_actives = Table(         # une ligne par catégorie : un produit combin�
     Column("active", String(20)),
     Column("amount", Float),
     Column("unit", String(4)),
-    Column("basis", String(10)),
+    Column("basis", String(20)),
     Column("source", String(20)),
     Column("confidence", Float),
     Column("evidence", Text),
@@ -137,7 +137,7 @@ promo_codes = Table(
     Column("site_id", ForeignKey("sites.id"), nullable=False),
     Column("country", ForeignKey("countries.code"), nullable=False),
     Column("code", String(60), nullable=False),
-    Column("discount_type", String(10)),
+    Column("discount_type", String(20)),
     Column("value", Float),
     Column("min_order", Float),
     Column("first_order_only", Boolean, default=False),
@@ -265,3 +265,12 @@ def init_db(engine: Engine) -> None:
             for name, sqltype in cols.items():
                 if name not in have:
                     conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {sqltype}"))
+        # Colonnes élargies après coup (« per_serving », « free_shipping » dépassent 10 caractères).
+        if engine.dialect.name == "postgresql":
+            for table, col, width in WIDENED:
+                length = next((c["type"].length for c in insp.get_columns(table) if c["name"] == col), None)
+                if length is not None and length < width:
+                    conn.execute(text(f"ALTER TABLE {table} ALTER COLUMN {col} TYPE VARCHAR({width})"))
+
+
+WIDENED = [("product_actives", "basis", 20), ("promo_codes", "discount_type", 20)]
