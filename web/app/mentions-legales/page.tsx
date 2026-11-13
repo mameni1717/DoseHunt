@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Mentions légales", alternates: { canonical: "/mentions-legales" } };
 
-// À COMPLÉTER avant la mise en ligne : les champs [ ... ] sont des informations personnelles que seul l'éditeur connaît.
 export default function MentionsLegales() {
   return (
     <article className="prose">
@@ -10,11 +9,9 @@ export default function MentionsLegales() {
 
       <h2>Éditeur du site</h2>
       <p>
-        DoseHunt, site édité par [NOM ET PRÉNOM DE L'ÉDITEUR, ou raison sociale et forme juridique si société],
-        [ADRESSE POSTALE, ou adresse de domiciliation].<br />
-        Contact : [ADRESSE E-MAIL DE CONTACT].<br />
-        Directeur de la publication : [NOM].<br />
-        [Si entreprise : numéro SIREN / SIRET, numéro de TVA intracommunautaire.]
+        DoseHunt, site édité à titre personnel par Marc Duris, 34 place de Roche Noire, 73450 Valmeinier, France.<br />
+        Contact : mameni1717@gmail.com<br />
+        Directeur de la publication : Marc Duris.
       </p>
 
       <h2>Hébergement</h2>
@@ -26,7 +23,7 @@ export default function MentionsLegales() {
       <h2>Nature du site et liens affiliés</h2>
       <p>
         DoseHunt est un comparateur de prix de compléments alimentaires. Le site ne vend aucun produit. Certains liens
-        vers les marchands sont des liens affiliés : si tu achètes après avoir cliqué, DoseHunt peut recevoir une
+        vers les marchands peuvent être des liens affiliés : si tu achètes après avoir cliqué, DoseHunt peut recevoir une
         commission, sans surcoût pour toi. Le classement ne dépend que du prix comparé, aucun marchand ne peut payer pour
         être mieux classé (voir <a href="/methode">notre méthode</a>).
       </p>

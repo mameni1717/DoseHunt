@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = { title: "Politique de confidentialité", alternates: { canonical: "/confidentialite" } };
 
-// À COMPLÉTER avant la mise en ligne : l'adresse de contact [ ... ]. Le reste décrit le fonctionnement actuel du site.
 export default function Confidentialite() {
   return (
     <article className="prose">
@@ -13,7 +12,7 @@ export default function Confidentialite() {
       </p>
 
       <h2>Responsable du traitement</h2>
-      <p>L'éditeur du site (voir les <a href="/mentions-legales">mentions légales</a>). Contact : [ADRESSE E-MAIL DE CONTACT].</p>
+      <p>L'éditeur du site (voir les <a href="/mentions-legales">mentions légales</a>). Contact : mameni1717@gmail.com.</p>
 
       <h2>Les données que nous traitons</h2>
       <ul>
@@ -47,7 +46,7 @@ export default function Confidentialite() {
       <h2>Tes droits</h2>
       <p>
         Tu peux demander l'accès, la rectification ou la suppression de tes données, ou t'opposer à leur traitement, en
-        écrivant à [ADRESSE E-MAIL DE CONTACT]. Tu peux aussi supprimer une alerte à tout moment avec le lien présent
+        écrivant à mameni1717@gmail.com. Tu peux aussi supprimer une alerte à tout moment avec le lien présent
         dans chaque e-mail. En cas de désaccord, tu peux saisir la CNIL (cnil.fr).
       </p>
 
