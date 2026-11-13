@@ -23,7 +23,7 @@ export const CATEGORIES: Category[] = [
   {
     id: "whey", label: "Protéines en poudre", short: "Whey", group: "main", defaultMode: "dose",
     modes: { dose: { label: "Prix par kg de protéine", unit: "€/kg prot.", short: "€/kg protéine" }, kg },
-    subs: { classique: "Whey", isolate: "Whey isolate", clear: "Clear whey", caseine: "Caséine", vegane: "Protéine végétale" },
+    subs: { classique: "Whey classique", isolate: "Whey isolate", clear: "Clear whey", caseine: "Caséine", vegane: "Protéine végétale" },
     activeName: "protéine", activeShare: "Taux de protéine",
     filters: ["lactose", "sweetener", "sucralose", "minActive", "milk"],
   },

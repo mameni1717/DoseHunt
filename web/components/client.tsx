@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 /** Copie le code promo et ouvre l'offre dans le même clic (un window.open différé est bloqué par les navigateurs). */
-export function GoButton({ offerId, code, label = "Voir l'offre" }: { offerId: number; code?: string | null; label?: string }) {
+export function GoButton({ offerId, code, label = "Voir l'offre", big = false }: { offerId: number; code?: string | null; label?: string; big?: boolean }) {
   const [msg, setMsg] = useState<string | null>(null);
   const href = `/go/${offerId}${code ? `?code=${encodeURIComponent(code)}` : ""}`;
   function onClick() {
@@ -13,7 +13,7 @@ export function GoButton({ offerId, code, label = "Voir l'offre" }: { offerId: n
   }
   return (
     <>
-      <a className="btn blaze" href={href} target="_blank" rel="nofollow sponsored noopener" onClick={onClick}>
+      <a className={big ? "btn blaze big" : "btn blaze"} href={href} target="_blank" rel="nofollow sponsored noopener" onClick={onClick}>
         {label} ↗
       </a>
       {msg && <span className="toast" role="status">{msg}</span>}
@@ -59,24 +59,32 @@ export function CodeVote({ codeId }: { codeId: number }) {
   );
 }
 
-/** Soumet le formulaire parent dès qu'un filtre change (le bouton « Appliquer » reste pour les navigateurs sans JS). */
-export function AutoSubmit() {
-  const ref = useRef<HTMLSpanElement>(null);
+/** Filtres du formulaire parent : rien ne s'applique avant « Appliquer » ; le bouton signale les changements en attente. */
+export function ApplyFilters({ children }: { children?: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pending, setPending] = useState(0);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     const form = ref.current?.closest("form");
     if (!form) return;
-    const onChange = (e: Event) => {
-      const t = e.target as HTMLElement;
-      if (t.matches("select, input[type=checkbox], input[type=radio]")) {
-        setBusy(true);
-        form.requestSubmit();
-      }
-    };
+    const fields = () => Array.from(form.querySelectorAll<HTMLInputElement | HTMLSelectElement>("select, input[type=checkbox]"));
+    const initial = new Map(fields().map((f) => [f, f instanceof HTMLInputElement ? String(f.checked) : f.value]));
+    const onChange = () => setPending(fields().filter((f) =>
+      initial.get(f) !== (f instanceof HTMLInputElement ? String(f.checked) : f.value)).length);
+    const onSubmit = () => setBusy(true);
     form.addEventListener("change", onChange);
-    return () => form.removeEventListener("change", onChange);
+    form.addEventListener("submit", onSubmit);
+    return () => { form.removeEventListener("change", onChange); form.removeEventListener("submit", onSubmit); };
   }, []);
-  return <span ref={ref} className="busy" aria-live="polite">{busy ? "Mise à jour…" : ""}</span>;
+  return (
+    <div ref={ref} className="row apply-row">
+      <button type="submit" className={pending ? "btn primary" : "btn ghost"}>
+        {busy ? "Mise à jour…" : "Appliquer"}
+      </button>
+      {pending > 0 && !busy && <span className="pending" aria-live="polite">{pending} filtre{pending > 1 ? "s" : ""} non appliqué{pending > 1 ? "s" : ""}</span>}
+      {children}
+    </div>
+  );
 }
 
 // ------------------------------------------------------------------ comparateur : sélection gardée dans le navigateur

@@ -216,3 +216,11 @@ details.more .row { margin-top: 10px; }
 .topic .bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; display: flex; }
 .topic .bar i { background: #2e9e5b; } .topic .bar b { background: var(--warn); }
 @media (max-width: 640px) { .topic { grid-template-columns: 1fr; } }
+.btn.primary { background: var(--blaze); color: #fff; }
+.apply-row .pending { font-size: 13px; color: var(--blaze); font-weight: 600; }
+/* Outils (Comparer, Alertes, Optimiser) : couleur à part des catégories */
+nav.cats a.navtool { background: var(--blaze-soft); color: var(--blaze); border-color: var(--blaze); font-weight: 600; }
+nav.cats a:not(.navtool) + a.navtool { margin-left: 8px; }
+nav.cats a.navtool[aria-current="page"] { background: var(--blaze); color: #fff; }
+.buy { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 12px 0 6px; }
+.btn.big { font-size: 17px; padding: 14px 22px; border-radius: 10px; box-shadow: 0 2px 0 rgba(0,0,0,.12); }

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { OfferCard } from "@/components/OfferCard";
-import { AutoSubmit } from "@/components/client";
+import { ApplyFilters } from "@/components/client";
 import { CATEGORY_BY_ID, MILK_ORIGINS, VITAMINS_GROUP, modeDef, modeOf, type Mode } from "@/lib/categories";
 import { getRanking } from "@/lib/data";
 import { displayName, num, qs } from "@/lib/format";
@@ -92,7 +92,6 @@ export default async function CategoryPage({ params, searchParams }: { params: P
       </section>
 
       <form className="controls" action={`/c/${cat}`} aria-label="Réglages du classement">
-        <AutoSubmit />
         {c.subs && (
           <div className="row">
             <span className="ctl-label">Type</span>
@@ -161,9 +160,10 @@ export default async function CategoryPage({ params, searchParams }: { params: P
             <p className="note-small">Les filtres « sans… » ne retiennent que les fiches qui le disent ou dont la liste d'ingrédients le montre ;
               une fiche muette est exclue.</p>
           )}
-          <div className="row"><button type="submit" className="btn ghost">Appliquer</button>
-            {extraActive > 0 && <Link className="btn ghost" href={qs({ sub: sp.sub, mode: sp.mode }, {})}>Tout réinitialiser</Link>}</div>
         </details>
+        <ApplyFilters>
+          {extraActive > 0 && <Link className="btn ghost" href={qs({ sub: sp.sub, mode: sp.mode }, {})}>Tout réinitialiser</Link>}
+        </ApplyFilters>
       </form>
 
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({

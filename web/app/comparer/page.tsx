@@ -5,7 +5,7 @@ import { getCompare, getRanking } from "@/lib/data";
 import { displayName, eur, num } from "@/lib/format";
 import { formatLabel, type Ranked } from "@/lib/rank";
 import { NUTRI_LABELS } from "@/components/ProductFacts";
-import { AutoSubmit, GoButton } from "@/components/client";
+import { ApplyFilters, GoButton } from "@/components/client";
 import { brandKey, norm } from "@/lib/group";
 import { currentCountry } from "@/lib/country";
 
@@ -55,7 +55,6 @@ export default async function Compare({ searchParams }: { searchParams: Promise<
       </div></section>
 
       <form className="controls" action="/comparer">
-        <AutoSubmit />
         <div className="row">
           <label className="ctl-label" htmlFor="cat">Catégorie</label>
           <select id="cat" className="filter" name="cat" defaultValue={cat}>
@@ -70,6 +69,7 @@ export default async function Compare({ searchParams }: { searchParams: Promise<
             ))}
           </div>
         </details>
+        <ApplyFilters />
       </form>
 
       <form className="controls" action="/comparer">
