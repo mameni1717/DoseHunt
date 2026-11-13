@@ -353,3 +353,14 @@ def test_alerts_notify_once_then_rearm(tmp_path, monkeypatch):
         c.execute(text("update index_rows set dose_value = 39"))
     alerts.run(e)
     assert len(sent) == 2                           # réarmée après être repassée au-dessus
+
+
+def test_page_image_og_first_relative_and_https():
+    from dosehunt.details import page_extras
+    page = ('<meta property="og:image" content="https://www.zumub.com/images/large/zumub/x_LRG.jpg">'
+            '<script type="application/ld+json">{"@type":"Product","image":"https://www.zumub.com/images/large/x_LRG.jpg"}</script>')
+    assert page_extras(page)["image_url"] == "https://www.zumub.com/images/large/zumub/x_LRG.jpg"
+    rel = '<script type="application/ld+json">{"@type":"Product","image":"/img/prods/1/main.webp"}</script>'
+    assert page_extras(rel, "https://www.optigura.fr/product/x")["image_url"] == "https://www.optigura.fr/img/prods/1/main.webp"
+    assert page_extras('<meta property="og:image" content="http://shop.fr/a.jpg">')["image_url"] == "https://shop.fr/a.jpg"
+    assert page_extras('<meta property="og:image" content="https://shop.fr/logo.png">')["image_url"] is None
