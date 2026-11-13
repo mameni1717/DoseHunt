@@ -34,5 +34,5 @@ export async function sendMail(to: string, subject: string, html: string): Promi
 }
 
 export function siteUrl(): string {
-  return (process.env.SITE_URL || "https://dose-hunt.vercel.app").replace(/\/$/, "");
+  return (process.env.SITE_URL || "https://dosehunt.com").replace(/\/$/, "");
 }
