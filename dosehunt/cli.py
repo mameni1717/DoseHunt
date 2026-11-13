@@ -181,6 +181,16 @@ def cmd_export(args):
     print(f"{len(data['products'])} produits exportés vers {args.output} ({counts}).")
 
 
+def cmd_purge(args):
+    """Rétention : allège l'historique ancien et supprime ce qui ne sert plus (limite de stockage Neon)."""
+    from .purge import Retention, purge, report
+    ret = Retention(history_full_days=args.history_days, history_daily_days=args.history_weekly_after,
+                    inactive_days=args.inactive_days, review_days=args.review_days, runs_days=args.runs_days,
+                    codes_days=args.codes_days, unconfirmed_alert_days=args.alert_days)
+    engine = _engine(args)
+    print(report(engine, purge(engine, ret, dry_run=args.dry_run), args.dry_run))
+
+
 def cmd_status(args):
     engine = _engine(args)
     r = db.collection_runs.c
@@ -276,6 +286,16 @@ def main(argv=None):
     e.add_argument("-o", "--output", default="dosehunt-index.json")
     e.add_argument("--country", default="FR")
     e.set_defaults(func=cmd_export)
+    pu = sub.add_parser("purge", help="rétention : allège l'historique ancien, supprime ce qui ne sert plus")
+    pu.add_argument("--dry-run", action="store_true", help="compter sans supprimer")
+    pu.add_argument("--history-days", type=int, default=90, help="historique complet sur N jours (défaut 90)")
+    pu.add_argument("--history-weekly-after", type=int, default=400, help="un relevé par semaine au-delà de N jours")
+    pu.add_argument("--inactive-days", type=int, default=90, help="produits et offres inactifs depuis N jours")
+    pu.add_argument("--review-days", type=int, default=30, help="revues résolues depuis N jours")
+    pu.add_argument("--runs-days", type=int, default=60, help="journal des collectes au-delà de N jours")
+    pu.add_argument("--codes-days", type=int, default=30, help="codes auto expirés ou retirés depuis N jours")
+    pu.add_argument("--alert-days", type=int, default=7, help="alertes non confirmées N jours après la confirmation")
+    pu.set_defaults(func=cmd_purge)
     sub.add_parser("status").set_defaults(func=cmd_status)
     r = sub.add_parser("review")
     r.add_argument("--limit", type=int, default=200)

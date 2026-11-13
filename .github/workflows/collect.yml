@@ -99,4 +99,10 @@ jobs:
       - name: Ce qui manque encore (rayons des marchands vs produits classés)
         if: needs.plan.outputs.full == '1'
         run: dosehunt gaps || true
+      - name: Rétention des données (une fois par jour, après la collecte complète de la nuit)
+        if: needs.plan.outputs.full == '1'
+        run: |
+          # collecte complète de 2 h 17 UTC : l'étape after tourne entre 2 h et 9 h UTC ; les autres passages sautent
+          h=$(date -u +%H)
+          if [ "$h" -ge 2 ] && [ "$h" -lt 9 ]; then dosehunt purge || true; else echo "Rétention : déjà faite aujourd'hui (passage de la nuit)"; fi
       - run: dosehunt status
