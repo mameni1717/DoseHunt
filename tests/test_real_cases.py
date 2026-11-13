@@ -370,8 +370,14 @@ def test_page_image_og_first_relative_and_https():
 def test_rayon_category_when_name_is_silent():
     from dosehunt.classify import classify
     from dosehunt.models import RawProduct
-    p = RawProduct(site_id="hsn", external_id="1", handle="", title="Evobomb", url="", rayon_categories=["preworkout"])
+    p = RawProduct(site_id="hsn", external_id="1", handle="", title="Evobomb", url="", rayon_categories=["preworkout"],
+                   body_html="Caféine 200 mg, bêta-alanine 3 g, citrulline malate 6 g")
     assert [(c.category) for c in classify(p)] == ["preworkout"]
+    greens = RawProduct(site_id="bulk", external_id="9", handle="", title="Complete Greens", url="",
+                        body_html="spiruline, chlorelle", rayon_categories=["preworkout"])
+    assert classify(greens) == []                   # rayon « pré-entraînement » sans actifs de pré-workout
+    syrup = RawProduct(site_id="bulk", external_id="8", handle="", title="Sirop zéro calorie", url="", tags=["pre-workout"])
+    assert classify(syrup) == []
     gel = RawProduct(site_id="z", external_id="2", handle="", title="Energy Gel citron", url="", rayon_categories=["barres"])
     assert classify(gel) == []                      # rayon « barres, boissons et gels » : pas une barre sans le mot
     caps = RawProduct(site_id="z", external_id="3", handle="", title="Caféine 200 mg 90 comprimés", url="", rayon_categories=["preworkout"])
