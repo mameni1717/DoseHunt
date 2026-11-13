@@ -1,5 +1,6 @@
 import { Pool as PgPool, types as pgTypes } from "pg";
 import { Pool as NeonPool, types as neonTypes } from "@neondatabase/serverless";
+import { unstable_cache } from "next/cache";
 
 // Base Neon : pilote serverless de Neon (WebSocket sur le port 443), recommandé sur Vercel et utilisable
 // derrière un pare-feu qui ne laisse passer que le web. Autre PostgreSQL : pilote pg classique.
@@ -23,4 +24,56 @@ export const pool: AnyPool =
 export async function q<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
   const res = await (pool as PgPool).query(sql, params);
   return res.rows as T[];
+}
+
+// ------------------------------------------------------------------ lectures en cache
+// Chaque visite interrogeait Neon, et la base restait allumée (et facturée) tant qu'il y avait du trafic.
+// Les lectures du site passent maintenant par `qc` : un cache partagé entre les instances Vercel (cache de
+// données Next.js, 30 min, étiquette DATA_TAG vidée après chaque collecte par /api/revalidate), doublé d'un
+// petit cache en mémoire par instance. Neon n'est réveillée qu'après une collecte ou au plus toutes les 30 min.
+// Les écritures (votes, alertes, clics) et les lectures qui doivent être fraîches restent sur `q`.
+export const DATA_TAG = "dosehunt-data";
+export const DATA_TTL_SECONDS = 1800;
+
+const MEMORY_MAX = 300;
+const memory = new Map<string, { at: number; rows: unknown[] }>();
+
+/** Vide le cache en mémoire de cette instance (les autres expirent d'elles-mêmes, 30 min au plus). */
+export function clearMemoryCache(): void {
+  memory.clear();
+}
+
+// Le cache partagé sérialise en JSON : les dates reviennent en texte. On les remet en Date pour que le code
+// lise exactement les mêmes valeurs qu'avec une requête directe.
+const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+function revive<T>(rows: T[]): T[] {
+  for (const row of rows as Record<string, unknown>[]) {
+    if (!row || typeof row !== "object") continue;
+    for (const k of Object.keys(row)) {
+      const v = row[k];
+      if (typeof v === "string" && v.length <= 35 && ISO.test(v)) row[k] = new Date(v);
+    }
+  }
+  return rows;
+}
+
+/** Lecture mise en cache 30 min (voir plus haut). La clé couvre la requête et tous ses paramètres. */
+export async function qc<T = Record<string, unknown>>(sql: string, params: unknown[] = []): Promise<T[]> {
+  if (process.env.DOSEHUNT_NO_CACHE === "1") return q<T>(sql, params);
+  const key = sql + "\u0000" + JSON.stringify(params);
+  const hit = memory.get(key);
+  if (hit && Date.now() - hit.at < DATA_TTL_SECONDS * 1000) return structuredClone(hit.rows) as T[];
+  let rows: T[];
+  try {
+    const cached = unstable_cache(() => q<T>(sql, params), ["dosehunt-q", key],
+                                  { revalidate: DATA_TTL_SECONDS, tags: [DATA_TAG] });
+    rows = revive(await cached());
+  } catch (err) {
+    // Hors contexte Next (tests, scripts) ou cache indisponible : lecture directe.
+    if (err instanceof Error && /incrementalCache missing|static generation store/i.test(err.message)) rows = await q<T>(sql, params);
+    else throw err;
+  }
+  if (memory.size >= MEMORY_MAX) memory.delete(memory.keys().next().value as string);
+  memory.set(key, { at: Date.now(), rows });
+  return structuredClone(rows) as T[];
 }

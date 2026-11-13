@@ -10,7 +10,13 @@ import { currentCountry } from "@/lib/country";
 import { ago, dateFr, displayName, eur, num, snippet } from "@/lib/format";
 import { rerank, formatLabel } from "@/lib/rank";
 
-export const dynamic = "force-dynamic";
+// Fiche mise en cache 30 min (régénérée à la demande) ; vidée après chaque collecte par /api/revalidate.
+export const revalidate = 1800;
+// Aucune fiche générée à la construction : chacune l'est à sa première visite, puis servie depuis le cache.
+export const dynamicParams = true;
+export async function generateStaticParams() {
+  return [];
+}
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const id = Number((await params).id);

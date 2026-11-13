@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { CATEGORIES } from "@/lib/categories";
-import { q } from "@/lib/db";
+import { qc } from "@/lib/db";
 import { SITE_URL } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     for (const sub of Object.keys(c.subs ?? {}))
       pages.push({ url: `${SITE_URL}/c/${c.id}?sub=${sub}`, lastModified: now, changeFrequency: "hourly", priority: 0.7 });
   }
-  const products = await q<{ id: number; t: Date | null }>(
+  const products = await qc<{ id: number; t: Date | null }>(
     `select p.id, max(o.collected_at) as t from products p join offers o on o.product_id = p.id
        join index_rows i on i.offer_id = o.id where p.active and o.active group by p.id`).catch(() => []);
   for (const p of products)

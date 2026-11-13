@@ -100,3 +100,10 @@ jobs:
         if: needs.plan.outputs.full == '1'
         run: dosehunt gaps || true
       - run: dosehunt status
+      - name: Vider le cache du site (nouveaux prix visibles tout de suite)
+        if: always()
+        env:
+          REVALIDATE_TOKEN: ${{ secrets.REVALIDATE_TOKEN }}
+        run: |
+          if [ -z "$REVALIDATE_TOKEN" ]; then echo "REVALIDATE_TOKEN absent : le cache expirera seul (30 min)"; exit 0; fi
+          curl -fsS -X POST -H "Authorization: Bearer $REVALIDATE_TOKEN" "$SITE_URL/api/revalidate" || echo "Revalidation impossible (sans gravité)"

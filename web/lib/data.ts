@@ -1,4 +1,4 @@
-import { q } from "./db.ts";
+import { qc } from "./db.ts";
 import type { PromoCode } from "./codes.ts";
 import { rerank, type Attributes, type IndexRow, type RankOptions, type Ranked } from "./rank.ts";
 
@@ -53,7 +53,7 @@ export function matches(r: IndexRow, f: Filters): boolean {
 }
 
 export async function getCodes(): Promise<PromoCode[]> {
-  return q<PromoCode>(`select * from promo_codes where country = $1`, [COUNTRY]);
+  return qc<PromoCode>(`select * from promo_codes where country = $1`, [COUNTRY]);
 }
 
 /** Historique (plus bas sur 90 jours, prix habituel sur 30 jours) et livraison offerte, ajoutés aux lignes. */
@@ -61,14 +61,14 @@ export async function enrich(rows: IndexRow[], codes?: PromoCode[]): Promise<Ind
   if (!rows.length) return rows;
   const ids = [...new Set(rows.map((r) => r.offer_id))];
   const [hist, ship] = await Promise.all([
-    q<{ offer_id: number; min90: number | null; avg30: number | null; since: Date; n: number }>(
+    qc<{ offer_id: number; min90: number | null; avg30: number | null; since: Date; n: number }>(
       `select offer_id,
               min(coalesce(final_price, price)) as min90,
               avg(coalesce(final_price, price)) filter (where observed_at > now() - interval '30 days') as avg30,
               min(observed_at) as since, count(*)::int as n
          from price_history where offer_id = any($1::int[]) and observed_at > now() - interval '90 days'
         group by offer_id`, [ids]).catch(() => []),
-    q<{ site_id: string; free_threshold: number | null }>(`select site_id, free_threshold from shipping where country = $1`, [COUNTRY]).catch(() => []),
+    qc<{ site_id: string; free_threshold: number | null }>(`select site_id, free_threshold from shipping where country = $1`, [COUNTRY]).catch(() => []),
   ]);
   const h = new Map(hist.map((x) => [x.offer_id, x]));
   const s = new Map(ship.map((x) => [x.site_id, x.free_threshold]));
@@ -90,7 +90,7 @@ export async function getRanking(cat: string, filters: Filters, opts: RankOption
   const params: unknown[] = [COUNTRY, cat];
   let sql = ROW_SELECT + ` and i.category = $2`;
   const codes = await getCodes();
-  const base = await enrich(await q<IndexRow>(sql, params), codes);
+  const base = await enrich(await qc<IndexRow>(sql, params), codes);
   const facets = buildFacets(base);
   const filtered = base.filter((r) => matches(r, filters));
   return { rows: rerank(filtered, codes, opts), facets };
@@ -131,7 +131,7 @@ function buildFacets(rows: IndexRow[]): Facets {
 }
 
 export async function getHome(): Promise<Record<string, { count: number; best: Ranked | null }>> {
-  const rows = await q<IndexRow>(ROW_SELECT, [COUNTRY]);
+  const rows = await qc<IndexRow>(ROW_SELECT, [COUNTRY]);
   const codes = await getCodes();
   const byCat = new Map<string, IndexRow[]>();
   for (const r of rows) if (r.available) byCat.set(r.category, [...(byCat.get(r.category) ?? []), r]);
@@ -145,7 +145,7 @@ export async function getHome(): Promise<Record<string, { count: number; best: R
 }
 
 export async function getProduct(id: number) {
-  const [product] = await q<{
+  const [product] = await qc<{
     id: number; site_id: string; site_name: string; brand: string | null; name: string; url: string;
     product_type: string | null; last_seen: Date; active: boolean;
     origin_country: string | null; origin_evidence: string | null; image_url: string | null; rating: number | null;
@@ -155,19 +155,19 @@ export async function getProduct(id: number) {
              p.origin_country, p.origin_evidence, p.image_url, p.rating, p.review_count, p.ingredients, p.nutrition, p.attributes, p.review_topics
         from products p join sites s on s.id = p.site_id where p.id = $1`, [id]);
   if (!product) return null;
-  const actives = await q<{
+  const actives = await qc<{
     category: string; subcategory: string | null; combined: boolean; amount: number | null; unit: string | null;
     basis: string | null; source: string | null; confidence: number | null; evidence: string | null;
     salt_label_mg: number | null; form: string | null; note: string | null; status: string; read_at: Date;
   }>(`select category, subcategory, combined, amount, unit, basis, source, confidence, evidence, salt_label_mg, form,
              note, status, read_at from product_actives where product_id = $1 order by category`, [id]);
-  const rows = await enrich(await q<IndexRow>(ROW_SELECT + ` and p.id = $2`, [COUNTRY, id]));
-  const offers = await q<{
+  const rows = await enrich(await qc<IndexRow>(ROW_SELECT + ` and p.id = $2`, [COUNTRY, id]));
+  const offers = await qc<{
     id: number; variant_title: string | null; flavour: string | null; price: number; compare_at_price: number | null;
     available: boolean; url: string; collected_at: Date; grams: number | null; units: number | null; unit_word: string | null;
   }>(`select id, variant_title, flavour, price, compare_at_price, available, url, collected_at, grams, units, unit_word
         from offers where product_id = $1 and active order by coalesce(grams, 0), coalesce(units, 0), variant_title`, [id]);
-  const history = await q<{ offer_id: number; observed_at: Date; price: number; final_price: number | null; best_code: string | null }>(
+  const history = await qc<{ offer_id: number; observed_at: Date; price: number; final_price: number | null; best_code: string | null }>(
     `select h.offer_id, h.observed_at, h.price, h.final_price, h.best_code
        from price_history h join offers o on o.id = h.offer_id
       where o.product_id = $1 order by h.observed_at`, [id]);
@@ -188,15 +188,15 @@ export async function search(text: string): Promise<Ranked[]> {
     const n = params.length;
     return `(p.canonical_key like $${n} or lower(s.name) like $${n} or i.category like $${n} or coalesce(a.form, '') like $${n})`;
   });
-  const rows = await q<IndexRow>(ROW_SELECT + ` and ` + conds.join(" and ") + ` limit 400`, params);
+  const rows = await qc<IndexRow>(ROW_SELECT + ` and ` + conds.join(" and ") + ` limit 400`, params);
   const ranked = rerank(rows, await getCodes(), { mode: "dose", allFormats: false, firstOrder: false, useCodes: true });
   return ranked.slice(0, 60);
 }
 
 export async function lastUpdate(): Promise<Date | null> {
-  const [r] = await q<{ t: Date | null }>(`select max(finished_at) as t from collection_runs where status in ('ok', 'partial')`);
+  const [r] = await qc<{ t: Date | null }>(`select max(finished_at) as t from collection_runs where status in ('ok', 'partial')`);
   if (r?.t) return r.t;
-  const [o] = await q<{ t: Date | null }>(`select max(collected_at) as t from offers`);
+  const [o] = await qc<{ t: Date | null }>(`select max(collected_at) as t from offers`);
   return o?.t ?? null;
 }
 
@@ -210,11 +210,11 @@ export interface CompareItem {
 export async function getCompare(ids: number[], cat?: string): Promise<CompareItem[]> {
   if (!ids.length) return [];
   const rows = cat
-    ? await q<IndexRow>(ROW_SELECT + ` and p.id = any($2::int[]) and i.category = $3`, [COUNTRY, ids, cat])
-    : await q<IndexRow>(ROW_SELECT + ` and p.id = any($2::int[])`, [COUNTRY, ids]);
+    ? await qc<IndexRow>(ROW_SELECT + ` and p.id = any($2::int[]) and i.category = $3`, [COUNTRY, ids, cat])
+    : await qc<IndexRow>(ROW_SELECT + ` and p.id = any($2::int[])`, [COUNTRY, ids]);
   const codes = await getCodes();
   await enrich(rows, codes);
-  const details = await q<{ id: number; ingredients: string | null; nutrition: Nutrition | null }>(
+  const details = await qc<{ id: number; ingredients: string | null; nutrition: Nutrition | null }>(
     `select id, ingredients, nutrition from products where id = any($1::int[])`, [ids]);
   const byId = new Map(details.map((d) => [d.id, d]));
   const out: CompareItem[] = [];
@@ -233,9 +233,9 @@ export async function getCompare(ids: number[], cat?: string): Promise<CompareIt
 /** « Optimiser mes achats » : offres en stock des catégories demandées, codes et seuils de livraison offerte. */
 export async function getOptimizerData(cats: string[]): Promise<{ rows: IndexRow[]; codes: PromoCode[]; shipping: Map<string, number | null> }> {
   const [rows, codes, ship] = await Promise.all([
-    q<IndexRow>(ROW_SELECT + ` and i.category = any($2::text[]) and o.available`, [COUNTRY, cats]),
+    qc<IndexRow>(ROW_SELECT + ` and i.category = any($2::text[]) and o.available`, [COUNTRY, cats]),
     getCodes(),
-    q<{ site_id: string; free_threshold: number | null }>(`select site_id, free_threshold from shipping where country = $1`, [COUNTRY]).catch(() => []),
+    qc<{ site_id: string; free_threshold: number | null }>(`select site_id, free_threshold from shipping where country = $1`, [COUNTRY]).catch(() => []),
   ]);
   return { rows, codes, shipping: new Map(ship.map((s) => [s.site_id, s.free_threshold != null ? Number(s.free_threshold) : null])) };
 }
@@ -244,7 +244,7 @@ export async function getOptimizerData(cats: string[]): Promise<{ rows: IndexRow
 export async function searchPinnable(cat: string, text: string): Promise<{ key: string; label: string; sites: number }[]> {
   const words = norm(text).split(/[^a-z0-9%]+/).filter((w) => w.length >= 2);
   if (!words.length) return [];
-  const rows = await q<IndexRow>(ROW_SELECT + ` and i.category = $2 and o.available`, [COUNTRY, cat]);
+  const rows = await qc<IndexRow>(ROW_SELECT + ` and i.category = $2 and o.available`, [COUNTRY, cat]);
   const flavours = flavourWords(rows.map((r) => r.flavour));
   const out = new Map<string, { key: string; label: string; sites: Set<string> }>();
   for (const r of rows) {
