@@ -79,6 +79,7 @@ function bestLine(need: Need, rows: IndexRow[], flavours: Set<string>): Line | n
     if (!r.available || r.category !== need.cat) continue;
     if (need.sub && r.subcategory !== need.sub) continue;
     if (need.pin && productKey(r, flavours) !== need.pin) continue;
+    if (!need.pin && r.combined) continue;   // « whey + collagène » ne compte pas comme le collagène de la liste
     const m = measure(r, kind);
     if (!m || m <= 0) continue;
     const copies = Math.max(1, Math.ceil(need.qty / m - 1e-9));
