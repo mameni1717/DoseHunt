@@ -1,58 +1,61 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { OfferCard } from "@/components/OfferCard";
+import { OfferCard, applyFiltersText } from "@/components/OfferCard";
 import { ApplyFilters } from "@/components/client";
-import { CATEGORY_BY_ID, MILK_ORIGINS, VITAMINS_GROUP, modeDef, modeOf, type Mode } from "@/lib/categories";
+import { categoryById, milkOrigin, modeDef, modeOf, vitaminsGroup, type Mode } from "@/lib/categories";
+import { countryFromPath, href } from "@/lib/country";
 import { getRanking } from "@/lib/data";
-import { displayName, num, qs } from "@/lib/format";
-import { currentCountry } from "@/lib/country";
+import { displayName, formatNumber, qs } from "@/lib/format";
+import { t, tp, type MessageKey } from "@/lib/i18n";
+import { rich } from "@/lib/rich";
+import { alternates } from "@/lib/seo";
 import { SITE_URL, monthYear } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
 const PAGE = 20;
 type SP = Record<string, string | undefined>;
+type Params = Promise<{ country: string; cat: string }>;
 
-const SEO_TITLE: Record<string, string> = {
-  whey: "Whey pas chère : comparatif au prix du kg de protéine",
-  creatine: "Créatine pas chère : comparatif au prix du kg de créatine",
-  preworkout: "Pré-workout : comparatif au prix de la portion",
-  collagene: "Collagène pas cher : comparatif au prix du kg de collagène",
-  barres: "Barres protéinées pas chères : comparatif au prix par barre",
-  zinc: "Zinc : comparatif au prix du zinc réel (pas du sel)",
-  magnesium: "Magnésium : comparatif au prix du magnésium réel",
-  vitamine_d: "Vitamine D3 : comparatif au prix des 100 000 UI",
-  vitamine_c: "Vitamine C : comparatif au prix du gramme",
-  omega3: "Oméga-3 : comparatif au prix de l'EPA + DHA",
-  glutamine: "Glutamine : comparatif au prix du kg",
-};
-
-export async function generateMetadata({ params, searchParams }: { params: Promise<{ cat: string }>; searchParams: Promise<SP> }): Promise<Metadata> {
-  const c = CATEGORY_BY_ID[(await params).cat];
+export async function generateMetadata({ params, searchParams }: { params: Params; searchParams: Promise<SP> }): Promise<Metadata> {
+  const p = await params;
+  const country = countryFromPath(p.country);
+  if (!country) return {};
+  const L = country.lang;
+  const c = categoryById(country)[p.cat];
   if (!c) return {};
   const sp = await searchParams;
   const sub = sp.sub && c.subs?.[sp.sub];
   const filtered = Object.keys(sp).some((k) => k !== "sub" && sp[k]);
-  const title = `${sub ? `${sub} : ` : ""}${SEO_TITLE[c.id] ?? c.label} (${monthYear()})`;
-  const description = `${c.label}${sub ? ` (${sub})` : ""} : toutes les offres des marchands français classées au vrai prix ` +
-    `(${modeDef(c.id, c.defaultMode).label.toLowerCase()}), meilleur code promo appliqué, prix mis à jour plusieurs fois par jour.`;
+  const seo = t(L, `category.seo.${c.id}` as MessageKey);
+  const title = t(L, "category.meta.title", {
+    sub: sub ? t(L, "category.meta.subPrefix", { sub }) : "",
+    title: seo.startsWith("category.seo.") ? c.label : seo,
+    month: monthYear(country),
+  });
+  const description = t(L, "category.meta.description", {
+    label: c.label, sub: sub ? ` (${sub})` : "", mode: modeDef(country, c.id, c.defaultMode).label.toLowerCase(),
+  });
   const path = `/c/${c.id}${sub ? `?sub=${sp.sub}` : ""}`;
   return {
     title, description,
-    alternates: { canonical: path },
-    openGraph: { title, description, url: path },
+    alternates: alternates(country, path),
+    openGraph: { title, description, url: href(country, path), locale: country.ogLocale },
     robots: filtered ? { index: false, follow: true } : undefined,   // vues filtrées : pas de doublons dans Google
   };
 }
 
-export default async function CategoryPage({ params, searchParams }: { params: Promise<{ cat: string }>; searchParams: Promise<SP> }) {
-  const { cat } = await params;
+export default async function CategoryPage({ params, searchParams }: { params: Params; searchParams: Promise<SP> }) {
+  const p = await params;
+  const country = countryFromPath(p.country);
+  if (!country) notFound();
+  const L = country.lang;
+  const { cat } = p;
   const sp = await searchParams;
-  if (cat === "caseine") redirect("/c/whey?sub=caseine");          // ancienne catégorie, désormais un type de whey
-  const c = CATEGORY_BY_ID[cat];
+  if (cat === "caseine") redirect(href(country, "/c/whey?sub=caseine"));          // ancienne catégorie, désormais un type de whey
+  const c = categoryById(country)[cat];
   if (!c) notFound();
-  const country = currentCountry();
   const mode: Mode = modeOf(c, sp.mode);
   const opts = { mode, allFormats: sp.all === "1", firstOrder: sp.first === "1", useCodes: sp.codes !== "0" };
   const filters = {
@@ -60,7 +63,7 @@ export default async function CategoryPage({ params, searchParams }: { params: P
     lactose: sp.lactose === "1", noSweetener: sp.nosweet === "1", noSucralose: sp.nosucra === "1",
     minActive: sp.min ? Number(sp.min) : undefined, milk: sp.milk,
   };
-  const { rows: all, facets } = await getRanking(cat, filters, opts);
+  const { rows: all, facets } = await getRanking(country, cat, filters, opts);
   const showOut = sp.stock === "all";
   const outCount = all.filter((r) => !r.available).length;
   const rows = showOut ? all : all.filter((r) => r.available);
@@ -69,34 +72,39 @@ export default async function CategoryPage({ params, searchParams }: { params: P
   const inStock = rows.filter((r) => r.available);
   const best = inStock[0];
   const base: SP = { ...sp, n: undefined };
-  const md = modeDef(cat, mode);
+  const md = modeDef(country, cat, mode);
   const has = (f: string) => (c.filters ?? []).includes(f as never);
   const extraActive = [sp.site, sp.brand, sp.form, sp.lactose, sp.nosweet, sp.nosucra, sp.min, sp.milk, sp.all, sp.first, sp.codes, sp.stock].filter(Boolean).length;
+  const share = c.activeShare ?? "";
 
   return (
     <>
-      {c.group === "vitamins" && <p className="crumb"><Link href="/vitamines">← {VITAMINS_GROUP.label}</Link></p>}
+      {c.group === "vitamins" && <p className="crumb"><Link href={href(country, "/vitamines")}>← {vitaminsGroup(country).label}</Link></p>}
       <section className="summary" aria-live="polite">
         <div>
           <h1>{c.label}</h1>
           {best ? (
             <p>
-              Meilleure offre : <b>{displayName(best.brand, best.name, " ")}</b> chez {best.site_name}, {best.variants > 1 ? "à partir de " : ""}
-              <b>{num(best.value ?? 0, 2)} {md.unit.replace(/\.$/, "")}</b>{best.applied ? ` avec le code ${best.applied.code.code}` : ""}.
-              {" "}{inStock.length} produit{inStock.length > 1 ? "s" : ""} en stock{filters.madeIn ? `, fabriqué${inStock.length > 1 ? "s" : ""} en ${country.name}` : ""}.
+              {rich(L, "category.best", { b: (x) => <b>{x}</b> }, {
+                name: displayName(best.brand, best.name, " "), site: best.site_name,
+                from: best.variants > 1 ? t(L, "category.best.from") : "",
+                value: `${formatNumber(best.value ?? 0, country, 2)} ${md.unit.replace(/\.$/, "")}`,
+                code: best.applied ? t(L, "category.best.code", { code: best.applied.code.code }) : "",
+              })}
+              {" "}{tp(L, "category.inStock", inStock.length)}{filters.madeIn ? tp(L, "category.inStock.made", inStock.length, { country: country.name }) : ""}.
             </p>
           ) : (
-            <p>{outCount ? `Aucune offre en stock pour ces réglages ; ${outCount} en rupture (case « Afficher les ruptures » dans « + de filtres »).` : "Aucune offre pour ces réglages."}</p>
+            <p>{outCount ? t(L, "category.none.out", { n: outCount }) : t(L, "category.none")}</p>
           )}
         </div>
       </section>
 
-      <form className="controls" action={`/c/${cat}`} aria-label="Réglages du classement">
+      <form className="controls" action={href(country, `/c/${cat}`)} aria-label={t(L, "category.form.label")}>
         {c.subs && (
           <div className="row">
-            <span className="ctl-label">Type</span>
+            <span className="ctl-label">{t(L, "category.type")}</span>
             <div className="seg">
-              <Link href={qs(base, { sub: undefined })} aria-current={!sp.sub}>Tous</Link>
+              <Link href={qs(base, { sub: undefined })} aria-current={!sp.sub}>{t(L, "category.type.all")}</Link>
               {Object.entries(c.subs).map(([id, label]) => (
                 <Link key={id} href={qs(base, { sub: id })} aria-current={sp.sub === id}>{label}</Link>
               ))}
@@ -105,7 +113,7 @@ export default async function CategoryPage({ params, searchParams }: { params: P
           </div>
         )}
         <div className="row">
-          <span className="ctl-label">Classer par</span>
+          <span className="ctl-label">{t(L, "category.sortBy")}</span>
           <div className="seg">
             {(Object.keys(c.modes) as Mode[]).map((m) => (
               <Link key={m} href={qs(base, { mode: m === c.defaultMode ? undefined : m })} aria-current={mode === m}>{c.modes[m]!.label}</Link>
@@ -118,85 +126,83 @@ export default async function CategoryPage({ params, searchParams }: { params: P
           </label>
         </div>
         <details className="more" open={extraActive > 0}>
-          <summary>+ de filtres{extraActive ? ` (${extraActive} actif${extraActive > 1 ? "s" : ""})` : ""}</summary>
+          <summary>{t(L, "category.more")}{extraActive ? tp(L, "category.more.active", extraActive) : ""}</summary>
           <div className="row">
-            <select className="filter" name="brand" defaultValue={sp.brand ?? ""} aria-label="Marque">
-              <option value="">Toutes les marques</option>
+            <select className="filter" name="brand" defaultValue={sp.brand ?? ""} aria-label={t(L, "category.brand")}>
+              <option value="">{t(L, "category.brand.all")}</option>
               {facets.brands.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
             </select>
-            <select className="filter" name="site" defaultValue={sp.site ?? ""} aria-label="Marchand">
-              <option value="">Tous les marchands</option>
+            <select className="filter" name="site" defaultValue={sp.site ?? ""} aria-label={t(L, "category.site")}>
+              <option value="">{t(L, "category.site.all")}</option>
               {facets.sites.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
             </select>
             {facets.forms.length > 0 && (
-              <select className="filter" name="form" defaultValue={sp.form ?? ""} aria-label="Forme">
-                <option value="">Toutes les formes</option>
+              <select className="filter" name="form" defaultValue={sp.form ?? ""} aria-label={t(L, "category.formFilter")}>
+                <option value="">{t(L, "category.formFilter.all")}</option>
                 {facets.forms.map((f) => <option key={f} value={f}>{f}</option>)}
               </select>
             )}
             {has("minActive") && (
-              <select className="filter" name="min" defaultValue={sp.min ?? ""} aria-label={`${c.activeShare} minimum`}>
-                <option value="">{c.activeShare} : tous</option>
-                {[60, 70, 75, 80, 85, 90].map((v) => <option key={v} value={v}>{c.activeShare} ≥ {v} %</option>)}
+              <select className="filter" name="min" defaultValue={sp.min ?? ""} aria-label={t(L, "category.min.label", { share })}>
+                <option value="">{t(L, "category.min.all", { share })}</option>
+                {[60, 70, 75, 80, 85, 90].map((v) => <option key={v} value={v}>{t(L, "category.min.option", { share, v })}</option>)}
               </select>
             )}
             {has("milk") && facets.milk.length > 0 && (
-              <select className="filter" name="milk" defaultValue={sp.milk ?? ""} aria-label="Origine du lait">
-                <option value="">Origine du lait : toutes</option>
-                {facets.milk.map((m) => <option key={m} value={m}>Lait : {MILK_ORIGINS[m] ?? m}</option>)}
+              <select className="filter" name="milk" defaultValue={sp.milk ?? ""} aria-label={t(L, "category.milk.label")}>
+                <option value="">{t(L, "category.milk.all")}</option>
+                {facets.milk.map((m) => <option key={m} value={m}>{t(L, "category.milk.option", { origin: milkOrigin(country, m) })}</option>)}
               </select>
             )}
           </div>
           <div className="row">
-            {has("lactose") && <label className="check"><input type="checkbox" name="lactose" value="1" defaultChecked={filters.lactose} /> Sans lactose</label>}
-            {has("sweetener") && <label className="check"><input type="checkbox" name="nosweet" value="1" defaultChecked={filters.noSweetener} /> Sans édulcorant</label>}
-            {has("sucralose") && <label className="check"><input type="checkbox" name="nosucra" value="1" defaultChecked={filters.noSucralose} /> Sans sucralose</label>}
-            <label className="check"><input type="checkbox" name="stock" value="all" defaultChecked={showOut} /> Afficher les ruptures ({outCount})</label>
-            <label className="check"><input type="checkbox" name="all" value="1" defaultChecked={opts.allFormats} /> Tous les formats et arômes</label>
-            <label className="check"><input type="checkbox" name="first" value="1" defaultChecked={opts.firstOrder} /> J'ai droit aux codes « 1re commande »</label>
-            <label className="check"><input type="checkbox" name="codes" value="0" defaultChecked={!opts.useCodes} /> Ignorer les codes promo</label>
+            {has("lactose") && <label className="check"><input type="checkbox" name="lactose" value="1" defaultChecked={filters.lactose} /> {t(L, "category.lactose")}</label>}
+            {has("sweetener") && <label className="check"><input type="checkbox" name="nosweet" value="1" defaultChecked={filters.noSweetener} /> {t(L, "category.noSweetener")}</label>}
+            {has("sucralose") && <label className="check"><input type="checkbox" name="nosucra" value="1" defaultChecked={filters.noSucralose} /> {t(L, "category.noSucralose")}</label>}
+            <label className="check"><input type="checkbox" name="stock" value="all" defaultChecked={showOut} /> {t(L, "category.showOut", { n: outCount })}</label>
+            <label className="check"><input type="checkbox" name="all" value="1" defaultChecked={opts.allFormats} /> {t(L, "category.allFormats")}</label>
+            <label className="check"><input type="checkbox" name="first" value="1" defaultChecked={opts.firstOrder} /> {t(L, "category.firstOrder")}</label>
+            <label className="check"><input type="checkbox" name="codes" value="0" defaultChecked={!opts.useCodes} /> {t(L, "category.ignoreCodes")}</label>
           </div>
           {(has("lactose") || has("sweetener")) && (
-            <p className="note-small">Les filtres « sans… » ne retiennent que les fiches qui le disent ou dont la liste d'ingrédients le montre ;
-              une fiche muette est exclue.</p>
+            <p className="note-small">{t(L, "category.withoutNote")}</p>
           )}
         </details>
-        <ApplyFilters>
-          {extraActive > 0 && <Link className="btn ghost" href={qs({ sub: sp.sub, mode: sp.mode }, {})}>Tout réinitialiser</Link>}
+        <ApplyFilters m={applyFiltersText(L)}>
+          {extraActive > 0 && <Link className="btn ghost" href={qs({ sub: sp.sub, mode: sp.mode }, {}) || href(country, `/c/${cat}`)}>{t(L, "category.reset")}</Link>}
         </ApplyFilters>
       </form>
 
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({
         "@context": "https://schema.org", "@type": "ItemList", name: c.label,
         itemListElement: inStock.slice(0, 20).map((r, i) => ({
-          "@type": "ListItem", position: i + 1, url: `${SITE_URL}/p/${r.product_id}`, name: displayName(r.brand, r.name, " "),
+          "@type": "ListItem", position: i + 1, url: `${SITE_URL}${href(country, `/p/${r.product_id}`)}`, name: displayName(r.brand, r.name, " "),
         })),
       }) }} />
 
       {visible.length > 0 ? (
         <ol className="list">
-          {visible.map((r, i) => <OfferCard key={r.offer_id} r={r} rank={i + 1} mode={mode} best={i === 0 && r.available} />)}
+          {visible.map((r, i) => <OfferCard key={r.offer_id} r={r} rank={i + 1} mode={mode} best={i === 0 && r.available} country={country} />)}
         </ol>
       ) : (
-        <p className="empty">Aucune offre pour ces réglages.</p>
+        <p className="empty">{t(L, "category.none")}</p>
       )}
       {rows.length > shown && (
         <p className="more-results">
           <Link className="btn ghost" href={`${qs(base, { n: String(shown + PAGE) })}#r${shown + 1}`} scroll={false}>
-            Voir {Math.min(PAGE, rows.length - shown)} produits de plus ({shown} sur {rows.length})
+            {tp(L, "category.moreResults", Math.min(PAGE, rows.length - shown), { shown, total: rows.length })}
           </Link>
         </p>
       )}
 
       <section className="notes">
         <div className="note">
-          <h3>Comment on calcule</h3>
-          Prix final = prix affiché − meilleur code applicable, divisé par la quantité d'actif ou le poids du contenant entier.
-          Pour chaque produit, seul l'arôme ou le format le moins cher est affiché. Frais de port non inclus.
+          <h3>{t(L, "category.note.calc.title")}</h3>
+          {t(L, "category.note.calc.text")}
         </div>
         <div className="note">
-          <h3>Être prévenu d'une baisse</h3>
-          Bouton « Alerte prix » sur chaque produit, ou <Link href={`/alertes?cat=${cat}`}>une alerte sur toute la catégorie</Link>.
+          <h3>{t(L, "category.note.alert.title")}</h3>
+          {rich(L, "category.note.alert.text", { link: (x) => <Link href={href(country, `/alertes?cat=${cat}`)}>{x}</Link> })}
         </div>
       </section>
     </>

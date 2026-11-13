@@ -2,37 +2,43 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+export interface GoButtonText { view: string; copied: string; note: string }   // copied / note : « {code} » remplacé ici
+
 /** Copie le code promo et ouvre l'offre dans le même clic (un window.open différé est bloqué par les navigateurs). */
-export function GoButton({ offerId, code, label = "Voir l'offre", big = false }: { offerId: number; code?: string | null; label?: string; big?: boolean }) {
+export function GoButton({ offerId, code, label, big = false, m }: { offerId: number; code?: string | null; label?: string; big?: boolean; m: GoButtonText }) {
   const [msg, setMsg] = useState<string | null>(null);
   const href = `/go/${offerId}${code ? `?code=${encodeURIComponent(code)}` : ""}`;
   function onClick() {
     if (!code) return;
-    navigator.clipboard?.writeText(code).then(() => setMsg(`Code ${code} copié`), () => setMsg(`Note le code ${code}`));
+    navigator.clipboard?.writeText(code).then(() => setMsg(m.copied.replace("{code}", code)), () => setMsg(m.note.replace("{code}", code)));
     setTimeout(() => setMsg(null), 3000);
   }
   return (
     <>
       <a className={big ? "btn blaze big" : "btn blaze"} href={href} target="_blank" rel="nofollow sponsored noopener" onClick={onClick}>
-        {label} ↗
+        {label ?? m.view} ↗
       </a>
       {msg && <span className="toast" role="status">{msg}</span>}
     </>
   );
 }
 
-export function CopyCode({ code }: { code: string }) {
+export interface CopyCodeText { aria: string; copy: string; copied: string }   // aria : « {code} » remplacé ici
+
+export function CopyCode({ code, m }: { code: string; m: CopyCodeText }) {
   const [done, setDone] = useState(false);
   return (
-    <button type="button" className="btn ghost small" aria-label={`Copier le code ${code}`}
+    <button type="button" className="btn ghost small" aria-label={m.aria.replace("{code}", code)}
       onClick={() => navigator.clipboard?.writeText(code).then(() => { setDone(true); setTimeout(() => setDone(false), 1500); }, () => {})}>
-      {done ? "Copié" : "Copier"}
+      {done ? m.copied : m.copy}
     </button>
   );
 }
 
 /** Bouton « ce code marche / ne marche plus » : alimente le score de confiance. */
-export function CodeVote({ codeId }: { codeId: number }) {
+export interface CodeVoteText { question: string; yes: string; no: string; thanks: string; error: string }
+
+export function CodeVote({ codeId, m }: { codeId: number; m: CodeVoteText }) {
   const [state, setState] = useState<"idle" | "busy" | "sent" | "error">("idle");
   const [choice, setChoice] = useState<boolean | null>(null);
   async function vote(works: boolean) {
@@ -50,17 +56,19 @@ export function CodeVote({ codeId }: { codeId: number }) {
   }
   return (
     <span className="vote">
-      Ce code a marché pour toi ?
-      <button type="button" aria-pressed={choice === true} onClick={() => vote(true)} disabled={state === "sent" || state === "busy"}>Oui</button>
-      <button type="button" aria-pressed={choice === false} onClick={() => vote(false)} disabled={state === "sent" || state === "busy"}>Non, plus valable</button>
-      {state === "sent" && <span>Merci, retour enregistré.</span>}
-      {state === "error" && <span>Envoi impossible, réessaie plus tard.</span>}
+      {m.question}
+      <button type="button" aria-pressed={choice === true} onClick={() => vote(true)} disabled={state === "sent" || state === "busy"}>{m.yes}</button>
+      <button type="button" aria-pressed={choice === false} onClick={() => vote(false)} disabled={state === "sent" || state === "busy"}>{m.no}</button>
+      {state === "sent" && <span>{m.thanks}</span>}
+      {state === "error" && <span>{m.error}</span>}
     </span>
   );
 }
 
 /** Filtres du formulaire parent : rien ne s'applique avant « Appliquer » ; le bouton signale les changements en attente. */
-export function ApplyFilters({ children }: { children?: ReactNode }) {
+export interface ApplyFiltersText { apply: string; busy: string; pendingOne: string; pendingMany: string }   // « {n} » remplacé ici
+
+export function ApplyFilters({ children, m }: { children?: ReactNode; m: ApplyFiltersText }) {
   const ref = useRef<HTMLDivElement>(null);
   const [pending, setPending] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -79,9 +87,9 @@ export function ApplyFilters({ children }: { children?: ReactNode }) {
   return (
     <div ref={ref} className="row apply-row">
       <button type="submit" className={pending ? "btn primary" : "btn ghost"}>
-        {busy ? "Mise à jour…" : "Appliquer"}
+        {busy ? m.busy : m.apply}
       </button>
-      {pending > 0 && !busy && <span className="pending" aria-live="polite">{pending} filtre{pending > 1 ? "s" : ""} non appliqué{pending > 1 ? "s" : ""}</span>}
+      {pending > 0 && !busy && <span className="pending" aria-live="polite">{(pending > 1 ? m.pendingMany : m.pendingOne).replace("{n}", String(pending))}</span>}
       {children}
     </div>
   );

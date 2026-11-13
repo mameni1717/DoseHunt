@@ -1,4 +1,6 @@
 import { q } from "./db.ts";
+import { COUNTRIES, DEFAULT_COUNTRY, countryByIso, href, type Country } from "./country.ts";
+import { t } from "./i18n.ts";
 
 // Table créée à la demande : elle appartient au site (les inscrits), jamais remplacée par l'envoi des collectes.
 let ready: Promise<unknown> | null = null;
@@ -35,4 +37,25 @@ export async function sendMail(to: string, subject: string, html: string): Promi
 
 export function siteUrl(): string {
   return (process.env.SITE_URL || "https://dosehunt.com").replace(/\/$/, "");
+}
+
+/** Pays enregistré avec l'alerte (colonne country) ; France si inconnu. */
+export function alertCountry(iso: string | null | undefined): Country {
+  return countryByIso(iso) ?? COUNTRIES[DEFAULT_COUNTRY];
+}
+
+/** Page des alertes dans la version du pays, avec un paramètre d'état (?confirmed=1…). */
+export function alertsPage(country: Country, query: string): string {
+  return `${siteUrl()}${href(country, "/alertes")}?${query}`;
+}
+
+/** E-mail de confirmation dans la langue du pays de l'alerte. */
+export function confirmMail(country: Country, link: string): { subject: string; html: string } {
+  const L = country.lang;
+  const activate = t(L, "alerts.mail.activate").replace(/<link>(.*?)<\/link>/, (_, c: string) => `<a href="${link}">${c}</a>`);
+  return {
+    subject: t(L, "alerts.mail.subject"),
+    html: `<p>${t(L, "alerts.mail.hello")}</p><p>${activate}</p>
+     <p>${t(L, "alerts.mail.ignore")}</p>`,
+  };
 }

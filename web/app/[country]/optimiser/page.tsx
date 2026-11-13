@@ -1,29 +1,47 @@
 import type { Metadata } from "next";
-import { CATEGORIES } from "@/lib/categories";
-import { DEFAULT_QTY, KIND_BY_CATEGORY, KIND_LABEL, SHIPPING_ESTIMATE } from "@/lib/optimize";
-import { Optimizer, type CatChoice } from "@/components/Optimizer";
+import { notFound } from "next/navigation";
+import { categories } from "@/lib/categories";
+import { countryFromPath, href } from "@/lib/country";
+import { MESSAGES, t } from "@/lib/i18n";
+import { rich } from "@/lib/rich";
+import { alternates } from "@/lib/seo";
+import { DEFAULT_QTY, KIND_BY_CATEGORY, KIND_LABEL_KEY, SHIPPING_ESTIMATE } from "@/lib/optimize";
+import { Optimizer, type CatChoice, type OptimizerMessages } from "@/components/Optimizer";
 
-export const metadata: Metadata = {
-  title: "Optimiser mes achats : le site le moins cher pour toute ta liste",
-  description:
-    "Whey, créatine, collagène, barres, pré-workout, vitamines : indique ce que tu achètes et DoseHunt trouve les 3 sites où commander toute ta liste au moins cher, code promo et livraison offerte compris.",
-  alternates: { canonical: "/optimiser" },
-};
+type Params = Promise<{ country: string }>;
 
-export default function OptimiserPage() {
-  const cats: CatChoice[] = CATEGORIES.filter((c) => KIND_BY_CATEGORY[c.id]).map((c) => ({
+export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+  const country = countryFromPath((await params).country);
+  if (!country) return {};
+  const L = country.lang;
+  return {
+    title: t(L, "optimizer.meta.title"),
+    description: t(L, "optimizer.meta.description"),
+    alternates: alternates(country, "/optimiser"),
+  };
+}
+
+export default async function OptimiserPage({ params }: { params: Params }) {
+  const country = countryFromPath((await params).country);
+  if (!country) notFound();
+  const L = country.lang;
+  const cats: CatChoice[] = categories(country).filter((c) => KIND_BY_CATEGORY[c.id]).map((c) => ({
     id: c.id, label: c.label, subs: c.subs ?? {}, kind: KIND_BY_CATEGORY[c.id],
-    kindLabel: KIND_LABEL[KIND_BY_CATEGORY[c.id]], defaultQty: DEFAULT_QTY[c.id] ?? 1,
+    kindLabel: t(L, KIND_LABEL_KEY[KIND_BY_CATEGORY[c.id]]), defaultQty: DEFAULT_QTY[c.id] ?? 1,
   }));
+  // Textes du composant client : seulement l'espace « optimizer. », dans la langue du pays.
+  const m: OptimizerMessages = Object.fromEntries(Object.entries(MESSAGES[L])
+    .filter(([k]) => k.startsWith("optimizer.") && !k.startsWith("optimizer.meta."))
+    .map(([k, v]) => [k.slice("optimizer.".length), v]));
   return (
     <>
       <section className="summary"><div>
-        <h1>Optimiser <em>mes achats</em></h1>
-        <p>Ajoute ce que tu achètes d&apos;habitude. On calcule, pour chaque marchand, le panier complet le moins cher
-          (code promo appliqué au panier entier, livraison offerte comptée) et on te montre les 3 meilleurs sites
-          où tout commander en une seule fois.</p>
+        <h1>{rich(L, "optimizer.title", { em: (c) => <em>{c}</em> })}</h1>
+        <p>{t(L, "optimizer.intro")}</p>
       </div></section>
-      <Optimizer cats={cats} shippingEstimate={SHIPPING_ESTIMATE} />
+      <Optimizer cats={cats} shippingEstimate={SHIPPING_ESTIMATE} m={m} country={country.code}
+        go={{ view: t(L, "offer.go.view"), copied: t(L, "offer.go.copied"), note: t(L, "offer.go.note") }}
+        locale={country.locale} currency={country.currency} productPrefix={href(country, "/p")} />
     </>
   );
 }

@@ -1,22 +1,39 @@
 import type { Metadata } from "next";
-import { VITAMIN_CATEGORIES, VITAMINS_GROUP } from "@/lib/categories";
+import { notFound } from "next/navigation";
+import { vitaminCategories, vitaminsGroup } from "@/lib/categories";
+import { countryFromPath } from "@/lib/country";
 import { getHome } from "@/lib/data";
+import { t } from "@/lib/i18n";
+import { alternates } from "@/lib/seo";
 import { CategoryTile } from "@/components/CategoryTiles";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: `${VITAMINS_GROUP.label} : le moins cher au gramme utile` };
 
-export default async function Vitamins() {
-  const home = await getHome();
+type Params = Promise<{ country: string }>;
+
+export async function generateMetadata({ params }: { params: Params }): Promise<Metadata> {
+  const country = countryFromPath((await params).country);
+  if (!country) return {};
+  return {
+    title: t(country.lang, "category.vitamins.title", { label: vitaminsGroup(country).label }),
+    alternates: alternates(country, "/vitamines"),
+  };
+}
+
+export default async function Vitamins({ params }: { params: Params }) {
+  const country = countryFromPath((await params).country);
+  if (!country) notFound();
+  const L = country.lang;
+  const home = await getHome(country);
+  const vit = vitaminsGroup(country);
   return (
     <>
       <section className="summary"><div>
-        <h1>{VITAMINS_GROUP.label}</h1>
-        <p>Minéraux, vitamines et acides aminés, comparés au prix de l'actif réellement apporté (zinc ou magnésium élément,
-          UI de vitamine D, EPA + DHA…), pas au poids du comprimé.</p>
+        <h1>{vit.label}</h1>
+        <p>{t(L, "category.vitamins.text")}</p>
       </div></section>
-      <section className="grid" aria-label={VITAMINS_GROUP.label}>
-        {VITAMIN_CATEGORIES.map((c) => <CategoryTile key={c.id} c={c} h={home[c.id]} />)}
+      <section className="grid" aria-label={vit.label}>
+        {vitaminCategories(country).map((c) => <CategoryTile key={c.id} c={c} h={home[c.id]} country={country} />)}
       </section>
     </>
   );

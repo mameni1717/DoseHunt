@@ -5,6 +5,7 @@
 import { MIN_CONFIDENCE, effectiveConfidence, percentFor, type PromoCode } from "./codes.ts";
 import { brandKey, coreName, flavourWords } from "./group.ts";
 import type { IndexRow } from "./rank.ts";
+import type { MessageKey } from "./i18n.ts";
 
 export type QtyKind = "grams" | "units" | "portions";
 
@@ -20,7 +21,8 @@ export const DEFAULT_QTY: Record<string, number> = {
   barres: 12, zinc: 90, magnesium: 90, vitamine_d: 90, vitamine_c: 90, omega3: 90,
 };
 
-export const KIND_LABEL: Record<QtyKind, string> = { grams: "g de produit", units: "unités", portions: "portions" };
+/** Libellé de l'unité du besoin : clé de traduction (messages/<lang>/optimizer.ts), traduite par la page. */
+export const KIND_LABEL_KEY: Record<QtyKind, MessageKey> = { grams: "optimizer.kind.grams", units: "optimizer.kind.units", portions: "optimizer.kind.portions" };
 
 export interface Need {
   cat: string;

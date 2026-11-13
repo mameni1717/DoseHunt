@@ -1,10 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { eur } from "@/lib/format";
-import { formatLabel } from "@/lib/rank";
 import type { QtyKind } from "@/lib/optimize";
-import { GoButton } from "@/components/client";
+import { GoButton, type GoButtonText } from "@/components/client";
 
 export interface CatChoice { id: string; label: string; subs: Record<string, string>; kind: QtyKind; kindLabel: string; defaultQty: number }
 
@@ -21,22 +19,43 @@ interface ResBasket {
   freeFrom: number | null; freeShipping: boolean; missingForFree: number | null; freeCode: string | null;
 }
 
-const STORE = "dosehunt.optimiser.v1";
+/** Textes de l'Optimiseur, déjà traduits par la page (messages/<lang>/optimizer.ts, sans le préfixe « optimizer. »). */
+export type OptimizerMessages = Record<string, string>;
 
-function load(): { items: Item[]; firstOrder: boolean; useCodes: boolean } | null {
+// Liste enregistrée dans le navigateur, une par pays. Ancienne clé sans pays : relue en repli pour la France.
+const STORE_PREFIX = "dosehunt.optimiser.v1";
+const LEGACY_STORE = "dosehunt.optimiser.v1";
+
+function load(iso: string): { items: Item[]; firstOrder: boolean; useCodes: boolean } | null {
   try {
-    const raw = localStorage.getItem(STORE);
+    const raw = localStorage.getItem(`${STORE_PREFIX}.${iso}`) ?? (iso === "FR" ? localStorage.getItem(LEGACY_STORE) : null);
     return raw ? JSON.parse(raw) : null;
   } catch { return null; }
 }
 
-function qtyText(kind: QtyKind, n: number): string {
-  if (kind === "grams") return n >= 1000 ? `${(n / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 2 })} kg` : `${n} g`;
-  return `${n} ${kind === "portions" ? "portions" : "unités"}`;
+function fill(s: string, vars: Record<string, string | number>): string {
+  return s.replace(/\{(\w+)\}/g, (m, k: string) => (k in vars ? String(vars[k]) : m));
 }
 
-export function Optimizer({ cats, shippingEstimate }: { cats: CatChoice[]; shippingEstimate: number }) {
+export function Optimizer({ cats, shippingEstimate, m, go, country, locale, currency, productPrefix }: {
+  cats: CatChoice[]; shippingEstimate: number; m: OptimizerMessages; go: GoButtonText;
+  country: string; locale: string; currency: string; productPrefix: string;
+}) {
   const byId = Object.fromEntries(cats.map((c) => [c.id, c]));
+  const store = `${STORE_PREFIX}.${country}`;
+  const plural = new Intl.PluralRules(locale);
+  const money = (n: number | null | undefined) =>
+    n == null ? "–" : n.toLocaleString(locale, { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const qtyText = (kind: QtyKind, n: number): string => {
+    if (kind === "grams") return n >= 1000 ? fill(m["qty.kg"], { n: (n / 1000).toLocaleString(locale, { maximumFractionDigits: 2 }) }) : fill(m["qty.g"], { n });
+    return fill(m[kind === "portions" ? "qty.portions" : "qty.units"], { n });
+  };
+  // Format d'une ligne (« 1 kg », « 12 barres ») : même règle que formatLabel (lib/rank), dans le format du pays.
+  const formatLabel = (r: Pick<ResLine, "grams" | "units" | "unit_word" | "variant_title">): string => {
+    if (r.units && r.unit_word && r.unit_word !== "dose") return `${r.units} ${r.unit_word}${r.units > 1 ? "s" : ""}`;
+    if (r.grams) return r.grams >= 1000 ? `${(r.grams / 1000).toLocaleString(locale, { maximumFractionDigits: 2 })} kg` : `${r.grams} g`;
+    return r.variant_title ?? "";
+  };
   const [items, setItems] = useState<Item[]>([{ cat: "whey", sub: "classique", qty: byId.whey?.defaultQty ?? 1000, pin: null, pinLabel: null, minActive: 70 }]);
   const [firstOrder, setFirstOrder] = useState(false);
   const [useCodes, setUseCodes] = useState(true);
@@ -47,15 +66,15 @@ export function Optimizer({ cats, shippingEstimate }: { cats: CatChoice[]; shipp
   const [search, setSearch] = useState<{ idx: number; q: string; hits: { key: string; label: string; sites: number }[] } | null>(null);
 
   useEffect(() => {
-    const s = load();
+    const s = load(country);
     if (s?.items?.length) { setItems(s.items.filter((i) => byId[i.cat])); setFirstOrder(!!s.firstOrder); setUseCodes(s.useCodes !== false); }
     setLoaded(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
     if (!loaded) return;
-    try { localStorage.setItem(STORE, JSON.stringify({ items, firstOrder, useCodes })); } catch { /* navigation privée */ }
-  }, [items, firstOrder, useCodes, loaded]);
+    try { localStorage.setItem(store, JSON.stringify({ items, firstOrder, useCodes })); } catch { /* navigation privée */ }
+  }, [items, firstOrder, useCodes, loaded, store]);
 
   const update = (i: number, patch: Partial<Item>) => { setItems((xs) => xs.map((x, k) => (k === i ? { ...x, ...patch } : x))); setResult(null); };
   const add = () => {
@@ -69,7 +88,7 @@ export function Optimizer({ cats, shippingEstimate }: { cats: CatChoice[]; shipp
     setSearch({ idx, q, hits: search?.idx === idx ? search.hits : [] });
     if (q.trim().length < 2) return;
     try {
-      const r = await fetch(`/api/optimiser?cat=${encodeURIComponent(items[idx].cat)}&q=${encodeURIComponent(q)}`);
+      const r = await fetch(`/api/optimiser?country=${encodeURIComponent(country)}&cat=${encodeURIComponent(items[idx].cat)}&q=${encodeURIComponent(q)}`);
       const hits = await r.json();
       setSearch((s) => (s && s.idx === idx && s.q === q ? { ...s, hits } : s));
     } catch { /* recherche indisponible */ }
@@ -80,12 +99,12 @@ export function Optimizer({ cats, shippingEstimate }: { cats: CatChoice[]; shipp
     try {
       const r = await fetch("/api/optimiser", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ needs: items.map((i) => ({ cat: i.cat, sub: i.sub || null, qty: i.qty, pin: i.pin, minActive: i.cat === "whey" && !i.pin ? i.minActive ?? null : null })), firstOrder, useCodes }),
+        body: JSON.stringify({ country, needs: items.map((i) => ({ cat: i.cat, sub: i.sub || null, qty: i.qty, pin: i.pin, minActive: i.cat === "whey" && !i.pin ? i.minActive ?? null : null })), firstOrder, useCodes }),
       });
       if (!r.ok) throw new Error(String(r.status));
       setResult((await r.json()).baskets);
     } catch {
-      setError("Le calcul n'a pas abouti. Réessaie dans un instant.");
+      setError(m["error"]);
     } finally { setBusy(false); }
   }
 
@@ -97,21 +116,21 @@ export function Optimizer({ cats, shippingEstimate }: { cats: CatChoice[]; shipp
           return (
             <div key={i} className="opt-item">
               <div className="row">
-                <select className="filter" aria-label="Catégorie" value={it.cat}
+                <select className="filter" aria-label={m["cat"]} value={it.cat}
                   onChange={(e) => update(i, { cat: e.target.value, sub: e.target.value === "whey" ? "classique" : "", qty: byId[e.target.value].defaultQty, pin: null, pinLabel: null, minActive: e.target.value === "whey" ? 70 : null })}>
                   {cats.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
                 </select>
                 {Object.keys(c.subs).length > 0 && !it.pin && (
-                  <select className="filter" aria-label="Type" value={it.sub} onChange={(e) => update(i, { sub: e.target.value })}>
-                    <option value="">Tous types</option>
+                  <select className="filter" aria-label={m["type"]} value={it.sub} onChange={(e) => update(i, { sub: e.target.value })}>
+                    <option value="">{m["allTypes"]}</option>
                     {Object.entries(c.subs).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
                 )}
                 {it.cat === "whey" && !it.pin && (
-                  <select className="filter" aria-label="Taux de protéine minimum" value={it.minActive ?? ""}
+                  <select className="filter" aria-label={m["minActive"]} value={it.minActive ?? ""}
                     onChange={(e) => update(i, { minActive: e.target.value ? Number(e.target.value) : null })}>
-                    <option value="">Protéine : tout taux</option>
-                    {[60, 70, 75, 80, 85, 90].map((v) => <option key={v} value={v}>Protéine ≥ {v} %</option>)}
+                    <option value="">{m["minActive.any"]}</option>
+                    {[60, 70, 75, 80, 85, 90].map((v) => <option key={v} value={v}>{fill(m["minActive.value"], { v })}</option>)}
                   </select>
                 )}
                 <label className="opt-qty">
@@ -119,24 +138,24 @@ export function Optimizer({ cats, shippingEstimate }: { cats: CatChoice[]; shipp
                     onChange={(e) => update(i, { qty: Math.max(0, Number(e.target.value)) })} />
                   <span>{c.kindLabel}</span>
                 </label>
-                <button type="button" className="btn ghost small" onClick={() => remove(i)} aria-label="Retirer cette ligne"
-                  disabled={items.length === 1}>Retirer</button>
+                <button type="button" className="btn ghost small" onClick={() => remove(i)} aria-label={m["remove.label"]}
+                  disabled={items.length === 1}>{m["remove"]}</button>
               </div>
               <div className="row opt-pin">
                 {it.pin ? (
-                  <span className="chip">Produit précis : {it.pinLabel}
-                    <button type="button" className="linkish" onClick={() => update(i, { pin: null, pinLabel: null })}>× le moins cher de la catégorie</button>
+                  <span className="chip">{fill(m["pinned"], { label: it.pinLabel ?? "" })}
+                    <button type="button" className="linkish" onClick={() => update(i, { pin: null, pinLabel: null })}>{m["unpin"]}</button>
                   </span>
                 ) : (
                   <>
-                    <input className="filter grow" placeholder="Le moins cher de la catégorie, ou cherche un produit précis (marque, nom)…"
+                    <input className="filter grow" placeholder={m["search"]}
                       value={search?.idx === i ? search.q : ""} onChange={(e) => find(i, e.target.value)} />
                     {search?.idx === i && search.hits.length > 0 && (
                       <ul className="opt-hits">
                         {search.hits.map((h) => (
                           <li key={h.key}>
                             <button type="button" onClick={() => { update(i, { pin: h.key, pinLabel: h.label, sub: "" }); setSearch(null); }}>
-                              {h.label} <small>· {h.sites} site{h.sites > 1 ? "s" : ""}</small>
+                              {h.label} <small>· {fill(m[plural.select(h.sites) === "one" ? "sites.one" : "sites.other"], { n: h.sites })}</small>
                             </button>
                           </li>
                         ))}
@@ -149,16 +168,16 @@ export function Optimizer({ cats, shippingEstimate }: { cats: CatChoice[]; shipp
           );
         })}
         <div className="row">
-          <button type="button" className="btn ghost" onClick={add}>+ Ajouter un produit</button>
-          <label className="check"><input type="checkbox" checked={firstOrder} onChange={(e) => { setFirstOrder(e.target.checked); setResult(null); }} /> J&apos;ai droit aux codes « 1re commande »</label>
-          <label className="check"><input type="checkbox" checked={!useCodes} onChange={(e) => { setUseCodes(!e.target.checked); setResult(null); }} /> Ignorer les codes promo</label>
-          <button type="button" className="btn blaze" onClick={run} disabled={busy || !items.length}>{busy ? "Calcul…" : "Trouver les 3 meilleurs sites"}</button>
+          <button type="button" className="btn ghost" onClick={add}>{m["add"]}</button>
+          <label className="check"><input type="checkbox" checked={firstOrder} onChange={(e) => { setFirstOrder(e.target.checked); setResult(null); }} /> {m["firstOrder"]}</label>
+          <label className="check"><input type="checkbox" checked={!useCodes} onChange={(e) => { setUseCodes(!e.target.checked); setResult(null); }} /> {m["noCodes"]}</label>
+          <button type="button" className="btn blaze" onClick={run} disabled={busy || !items.length}>{busy ? m["busy"] : m["run"]}</button>
         </div>
       </div>
 
       {error && <p className="empty">{error}</p>}
       {result && result.length === 0 && (
-        <p className="empty">Aucun marchand n&apos;a toute ta liste en stock. Retire une ligne, élargis le type ou enlève un produit précis.</p>
+        <p className="empty">{m["none"]}</p>
       )}
       {result && result.length > 0 && (
         <ol className="opt-results">
@@ -168,39 +187,38 @@ export function Optimizer({ cats, shippingEstimate }: { cats: CatChoice[]; shipp
                 <span className="rank">{k + 1}</span>
                 <h2>{b.site_name}</h2>
                 <div className="opt-total">
-                  <strong>{eur(b.total)}</strong>
-                  {b.total < b.subtotal && <s>{eur(b.subtotal)}</s>}
+                  <strong>{money(b.total)}</strong>
+                  {b.total < b.subtotal && <s>{money(b.subtotal)}</s>}
                 </div>
               </header>
               <div className="subline">
-                {b.code && <span className="chip code">Code {b.code.code} : −{eur(b.code.discount)}{b.code.pct ? ` (−${b.code.pct} %)` : ""}{b.code.firstOrder ? " · 1re commande" : ""}</span>}
-                {b.freeShipping && <span className="chip good">🚚 Livraison offerte</span>}
-                {!b.freeShipping && b.freeCode && <span className="chip good">🚚 Livraison offerte avec le code {b.freeCode}</span>}
-                {!b.freeShipping && !b.freeCode && b.missingForFree != null && <span>🚚 + frais de port · encore {eur(b.missingForFree)} pour la livraison offerte (dès {eur(b.freeFrom)})</span>}
-                {!b.freeShipping && !b.freeCode && b.missingForFree == null && <span>🚚 + frais de port (seuil de livraison offerte non trouvé)</span>}
+                {b.code && <span className="chip code">{fill(m["code"], { code: b.code.code, amount: money(b.code.discount) })}{b.code.pct ? fill(m["code.pct"], { pct: b.code.pct }) : ""}{b.code.firstOrder ? m["code.firstOrder"] : ""}</span>}
+                {b.freeShipping && <span className="chip good">{m["ship.free"]}</span>}
+                {!b.freeShipping && b.freeCode && <span className="chip good">{fill(m["ship.freeCode"], { code: b.freeCode })}</span>}
+                {!b.freeShipping && !b.freeCode && b.missingForFree != null && <span>{fill(m["ship.missing"], { missing: money(b.missingForFree), from: money(b.freeFrom) })}</span>}
+                {!b.freeShipping && !b.freeCode && b.missingForFree == null && <span>{m["ship.unknown"]}</span>}
               </div>
               <table className="opt-lines">
                 <tbody>
                   {b.lines.map((l) => (
                     <tr key={`${l.cat}-${l.offer_id}`}>
-                      <td><a href={`/p/${l.product_id}`}>{l.brand ? `${l.brand} · ` : ""}{l.name}</a>
+                      <td><a href={`${productPrefix}/${l.product_id}`}>{l.brand ? `${l.brand} · ` : ""}{l.name}</a>
                         <small> · {formatLabel(l)}{l.flavour ? ` · ${l.flavour}` : ""}</small></td>
-                      <td className="num opt-unit">{l.copies > 1 ? `${l.copies} × ${eur(l.price)}` : eur(l.price)}</td>
-                      <td className="num">{l.copies > 1 && <small className="opt-copies">{l.copies} × </small>}{eur(l.cost)}</td>
-                      <td><GoButton offerId={l.offer_id} code={b.code?.code} label="Voir" /></td>
+                      <td className="num opt-unit">{l.copies > 1 ? `${l.copies} × ${money(l.price)}` : money(l.price)}</td>
+                      <td className="num">{l.copies > 1 && <small className="opt-copies">{l.copies} × </small>}{money(l.cost)}</td>
+                      <td><GoButton offerId={l.offer_id} code={b.code?.code} label={m["go"]} m={go} /></td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              <p className="opt-note">Couvre : {[...new Set(b.lines.map((l) => l.cat))].map((cat) =>
-                `${byId[cat]?.label ?? cat} ${qtyText(byId[cat]?.kind ?? "grams", b.lines.filter((l) => l.cat === cat).reduce((s, l) => s + l.covered, 0))}`).join(" · ")}</p>
+              <p className="opt-note">{fill(m["covers"], { list: [...new Set(b.lines.map((l) => l.cat))].map((cat) =>
+                `${byId[cat]?.label ?? cat} ${qtyText(byId[cat]?.kind ?? "grams", b.lines.filter((l) => l.cat === cat).reduce((s, l) => s + l.covered, 0))}`).join(" · ") })}</p>
             </li>
           ))}
         </ol>
       )}
       {result && result.length > 0 && (
-        <p className="opt-note">Prix relevés au dernier passage, arôme le moins cher en stock. Les sites sans livraison offerte sont
-          départagés avec une estimation de {eur(shippingEstimate)} de port, jamais ajoutée au total affiché. Vérifie le panier sur le site avant de payer.</p>
+        <p className="opt-note">{fill(m["note"], { estimate: money(shippingEstimate) })}</p>
       )}
     </>
   );

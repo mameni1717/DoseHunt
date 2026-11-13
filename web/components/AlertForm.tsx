@@ -2,11 +2,19 @@
 
 import { useState } from "react";
 
+/** Textes du formulaire, traduits par la page (messages alerts.form.*). */
+export interface AlertFormText {
+  email: string; placeholder: string; when: string; under: string; sending: string; create: string;
+  saved: string; failed: string; failedLater: string; privacy: string;
+}
+
 /** Formulaire d'alerte prix (e-mail + seuil + unité). */
-export function AlertForm({ product, cat, sub, units, defaults }: {
+export function AlertForm({ country, product, cat, sub, units, defaults, m }: {
+  country: string;                                      // code ISO du pays de la page, enregistré avec l'alerte
   product?: number; cat: string; sub?: string;
   units: { mode: string; label: string }[];             // « prix du produit (€) », « €/kg de protéine »…
   defaults?: Record<string, number>;                    // valeur actuelle par mode, pour pré-remplir
+  m: AlertFormText;
 }) {
   const [state, setState] = useState<"idle" | "busy" | "ok" | "error">("idle");
   const [msg, setMsg] = useState("");
@@ -20,30 +28,29 @@ export function AlertForm({ product, cat, sub, units, defaults }: {
       const r = await fetch("/api/alerts", {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: fd.get("email"), threshold: Number(String(fd.get("threshold")).replace(",", ".")),
-                               product_id: product ?? null, category: cat, subcategory: sub ?? null, mode }),
+                               product_id: product ?? null, category: cat, subcategory: sub ?? null, mode, country }),
       });
       const j = await r.json().catch(() => ({}));
       setState(r.ok ? "ok" : "error");
-      setMsg(j.message ?? (r.ok ? "Alerte enregistrée." : "Enregistrement impossible."));
+      setMsg(j.message ?? (r.ok ? m.saved : m.failed));
     } catch {
       setState("error");
-      setMsg("Enregistrement impossible, réessaie plus tard.");
+      setMsg(m.failedLater);
     }
   }
   if (state === "ok") return <p className="ok" role="status">{msg}</p>;
   return (
     <form className="alertform" onSubmit={submit}>
-      <label>Ton e-mail <input type="email" name="email" required autoComplete="email" placeholder="toi@exemple.fr" /></label>
-      <label>Me prévenir quand
+      <label>{m.email} <input type="email" name="email" required autoComplete="email" placeholder={m.placeholder} /></label>
+      <label>{m.when}
         <select value={mode} onChange={(e) => setMode(e.target.value)}>
           {units.map((u) => <option key={u.mode} value={u.mode}>{u.label}</option>)}
         </select>
       </label>
-      <label>passe sous <input key={mode} name="threshold" inputMode="decimal" required defaultValue={fmt(defaults?.[mode])} /></label>
-      <button type="submit" className="btn blaze" disabled={state === "busy"}>{state === "busy" ? "Envoi…" : "Créer l'alerte"}</button>
+      <label>{m.under} <input key={mode} name="threshold" inputMode="decimal" required defaultValue={fmt(defaults?.[mode])} /></label>
+      <button type="submit" className="btn blaze" disabled={state === "busy"}>{state === "busy" ? m.sending : m.create}</button>
       {state === "error" && <p className="err" role="alert">{msg}</p>}
-      <p className="note-small">Un e-mail de confirmation t'est envoyé avant toute alerte. Ton adresse ne sert qu'à ça et chaque
-        e-mail contient un lien de désinscription.</p>
+      <p className="note-small">{m.privacy}</p>
     </form>
   );
 }
