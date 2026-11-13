@@ -156,4 +156,13 @@ def rayon_map(collector) -> dict[str, set[str]]:
             for k in keys:
                 out.setdefault(k, set()).add(cat)
             log.info("%s : rayon %s → %d fiches (%s)", site.id, url, len(keys), cat)
-    return out
+    return drop_cross_links(site.id, out)
+
+
+def drop_cross_links(site_id: str, out: dict[str, set[str]]) -> dict[str, set[str]]:
+    """Une fiche présente dans 3 rayons ou plus est un lien de menu ou une « meilleure vente » répétée
+    sur toutes les pages, pas un produit du rayon : sa catégorie de rayon n'est pas retenue."""
+    noisy = [k for k, cats in out.items() if len(cats) >= 3]
+    if noisy:
+        log.info("%s : %d fiches ignorées (présentes dans 3 rayons ou plus)", site_id, len(noisy))
+    return {k: cats for k, cats in out.items() if len(cats) < 3}
