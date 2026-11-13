@@ -49,6 +49,7 @@ class FoundCode:
     ends_on: Optional[date] = None
     evidence: str = ""
     up_to: bool = False                       # « jusqu'à -36 % » : remise variable selon les produits
+    confidence: Optional[float] = None        # imposée (code vu sur une seule fiche produit : non appliqué)
 
     def merge(self, other: "FoundCode") -> None:
         if self.value is None and other.value is not None:
@@ -159,6 +160,49 @@ def collect_site_codes(site: Site, client: Optional[PoliteClient] = None, pages:
         if own:
             client.close()
     return list(merged.values())
+
+
+# Code vu sur UNE seule fiche produit et nulle part ailleurs : peut-être propre à ce produit.
+# Affiché, mais sous le seuil de confiance (pas appliqué aux autres produits du site).
+PRODUCT_ONLY_CONFIDENCE = 0.45
+
+
+def survey_site_codes(site: Site, product_urls: Optional[list[str]] = None,
+                      client: Optional[PoliteClient] = None) -> tuple[list[FoundCode], int]:
+    """Codes affichés sur l'accueil, les pages de codes et quelques fiches produits du site.
+    Renvoie (codes, nombre de pages lues) : 0 page lue = site injoignable, les codes connus ne sont pas
+    comptés comme disparus. Un code vu sur les pages générales ou sur au moins 2 fiches vaut pour tout le site."""
+    own = client is None
+    client = client or PoliteClient(delay_seconds=site.delay_seconds)
+    general = [site.root + "/"] + [u if u.startswith("http") else site.base_url.rstrip("/") + u
+                                   for u in (site.filters or {}).get("code_pages", [])]
+    merged: dict[str, FoundCode] = {}
+    on_general: set[str] = set()
+    product_hits: dict[str, int] = {}
+    pages_read = 0
+    try:
+        for url in general + list(product_urls or []):
+            try:
+                resp = client.get(url, accept_404=True)
+            except (FetchError, BlockedByRobots) as exc:
+                log.warning("%s : page de codes ignorée %s (%s)", site.id, url, exc)
+                continue
+            if resp is None:
+                continue
+            pages_read += 1
+            for fc in extract_codes(html_to_text(resp.text)):
+                merged.setdefault(fc.code, FoundCode(code=fc.code)).merge(fc)
+                if url in general:
+                    on_general.add(fc.code)
+                else:
+                    product_hits[fc.code] = product_hits.get(fc.code, 0) + 1
+    finally:
+        if own:
+            client.close()
+    for code, fc in merged.items():
+        if code not in on_general and product_hits.get(code, 0) < 2:
+            fc.confidence = PRODUCT_ONLY_CONFIDENCE
+    return list(merged.values()), pages_read
 
 
 # --------------------------------------------------------------------------- livraison offerte

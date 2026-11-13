@@ -16,6 +16,10 @@ from .models import ActiveContent, Format
 DEFAULT_SERVING_G = {"whey": 30, "preworkout": 10, "collagene": 10, "creatine": 3, "glutamine": 5}
 
 
+# Un code relevé sur le site et absent de 2 relevés de suite (environ 16 h) n'est plus appliqué.
+MISSED_RUNS_LIMIT = 2
+
+
 @dataclass
 class Code:
     code: str
@@ -34,6 +38,8 @@ class Code:
     source: str = ""
     ends_on: Optional[date] = None
     tiers: Optional[list] = None          # [{"min": 0, "pct": 20}, {"min": 70, "pct": 25}]
+    origin: str = "manual"
+    missed_runs: int = 0                  # code relevé automatiquement mais absent des derniers relevés
 
     def percent_for(self, price: float) -> Optional[float]:
         """Remise applicable à un panier contenant ce seul produit (paliers compris)."""
@@ -55,6 +61,8 @@ class Code:
         conf -= 0.15 * self.votes_ko
         if self.ends_on and today > self.ends_on:
             conf = 0
+        if self.origin == "auto" and self.missed_runs >= MISSED_RUNS_LIMIT:
+            conf = 0                                   # retiré du site depuis 2 relevés : plus appliqué
         return max(0.0, min(1.0, conf))
 
 

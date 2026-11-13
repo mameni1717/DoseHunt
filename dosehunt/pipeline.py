@@ -76,7 +76,7 @@ AUTO_CONFIDENCE = 0.75        # code affiché par le site lui-même
 UP_TO_CONFIDENCE = 0.4        # « jusqu'à -36 % » : sous le seuil, affiché mais pas appliqué
 
 
-def store_found_codes(engine: Engine, site: Site, found: list, today=None) -> dict:
+def store_found_codes(engine: Engine, site: Site, found: list, today=None, pages_read: int = 1) -> dict:
     """Enregistre les codes relevés sur un site. Un code saisi à la main n'est pas écrasé : on confirme seulement
     qu'il est toujours affiché (date de dernière confirmation)."""
     from datetime import date as _date
@@ -99,12 +99,24 @@ def store_found_codes(engine: Engine, site: Site, found: list, today=None) -> di
                 "stackable_with_sale": fc.stackable_with_sale, "applies_to": "all",
                 "source": "affiché sur le site (relevé automatique)" + (" ; remise « jusqu'à », variable selon les produits : "
                           "affichée mais non appliquée au prix" if fc.up_to else ""),
-                "confidence": UP_TO_CONFIDENCE if fc.up_to else AUTO_CONFIDENCE,
+                "confidence": UP_TO_CONFIDENCE if fc.up_to else (getattr(fc, "confidence", None) or AUTO_CONFIDENCE),
                 "last_confirmed": today, "ends_on": fc.ends_on, "tiers": fc.tiers or None, "origin": "auto",
-                "evidence": fc.evidence,
+                "evidence": fc.evidence, "missed_runs": 0,
             }, ["site_id", "country", "code"],
                 update_cols=["value", "min_order", "first_order_only", "stackable_with_sale", "confidence",
-                             "last_confirmed", "ends_on", "tiers", "evidence", "source"])
+                             "last_confirmed", "ends_on", "tiers", "evidence", "source", "missed_runs"])
+        # Codes relevés automatiquement et absents cette fois : un relevé manqué de plus (seulement si les pages
+        # ont bien été lues ; un site injoignable ne fait pas disparaître ses codes).
+        if pages_read:
+            seen = {fc.code for fc in found}
+            for row in conn.execute(select(db.promo_codes.c.id, db.promo_codes.c.code, db.promo_codes.c.missed_runs)
+                                    .where(and_(db.promo_codes.c.site_id == site.id, db.promo_codes.c.country == site.country,
+                                                db.promo_codes.c.origin == "auto",
+                                                db.promo_codes.c.discount_type != "free_shipping"))).mappings():
+                if row["code"] not in seen:
+                    conn.execute(update(db.promo_codes).where(db.promo_codes.c.id == row["id"])
+                                 .values(missed_runs=(row["missed_runs"] or 0) + 1))
+                    stats["missed"] = stats.get("missed", 0) + 1
     return stats
 
 
@@ -133,7 +145,8 @@ def load_db_codes(conn: Connection) -> list[Code]:
                         min_order=r["min_order"], confidence=r["confidence"] or 0.5,
                         last_confirmed=r["last_confirmed"], ends_on=r["ends_on"],
                         votes_ok=r["votes_ok"] or 0, votes_ko=r["votes_ko"] or 0, source=r["source"] or "",
-                        tiers=r["tiers"] or None))
+                        tiers=r["tiers"] or None, origin=r["origin"] or "manual",
+                        missed_runs=r.get("missed_runs") or 0))
     return out
 
 

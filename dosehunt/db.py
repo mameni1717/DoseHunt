@@ -151,6 +151,7 @@ promo_codes = Table(
     Column("votes_ko", Integer, default=0),
     Column("tiers", JSON),                 # paliers : [{"min": 0, "pct": 20}, {"min": 70, "pct": 25}]
     Column("origin", String(10)),          # manual (codes.yaml) | auto (relevé sur le site)
+    Column("missed_runs", Integer, default=0),   # relevés successifs où un code « auto » n'était plus affiché
     Column("evidence", Text),              # phrase du site où le code a été lu
     UniqueConstraint("site_id", "country", "code", name="uq_code"),
 )
@@ -247,7 +248,7 @@ code_votes = Table(              # retours « ce code marche / ne marche plus »
 )
 
 # Colonnes ajoutées après la première version : ajoutées aux bases existantes au démarrage.
-LATE_COLUMNS = {"promo_codes": {"tiers": "JSON", "origin": "VARCHAR(10)", "evidence": "TEXT"},
+LATE_COLUMNS = {"promo_codes": {"tiers": "JSON", "origin": "VARCHAR(10)", "evidence": "TEXT", "missed_runs": "INTEGER DEFAULT 0"},
                 "sites": {"affiliate_template": "TEXT", "base_url": "VARCHAR(200)"},
                 "products": {"content_hint": "VARCHAR(60)", "origin_country": "VARCHAR(2)",
                              "origin_evidence": "VARCHAR(200)", "image_url": "VARCHAR(500)", "rating": "FLOAT",

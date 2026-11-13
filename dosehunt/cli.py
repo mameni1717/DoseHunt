@@ -73,16 +73,21 @@ def cmd_collect(args):
 
 def cmd_codes(args):
     """Relève les codes promo affichés par les sites, puis recalcule l'index."""
-    from .codes import collect_site_codes
     from .pipeline import recompute_index, seed, store_found_codes
     engine = _engine(args)
     seed(engine)
     targets = [get_site(s) for s in args.site] if args.site else [s for s in sites().values() if s.status == "active"]
     from .codes import collect_site_shipping
     from .pipeline import store_shipping
+    from .codes import survey_site_codes
+    from .pipeline import top_product_urls
     for site in targets:
-        found = collect_site_codes(site)
-        st = store_found_codes(engine, site, found)
+        try:
+            products = sorted(top_product_urls(engine, site.id, 50))[:2]   # 2 fiches phares : codes affichés sur les fiches
+        except Exception:                                # noqa: BLE001
+            products = []
+        found, pages_read = survey_site_codes(site, products)
+        st = store_found_codes(engine, site, found, pages_read=pages_read)
         try:
             th, free_codes, ev = collect_site_shipping(site)
             th = th if th is not None else (site.filters or {}).get("free_shipping_from")
@@ -93,7 +98,8 @@ def cmd_codes(args):
             print(f"{site.name:<20} livraison : lecture impossible ({exc})")
         desc = ", ".join(f"{f.code} ({'/'.join(str(t['pct']) + '%' + (' dès ' + str(int(t['min'])) + '€' if t['min'] else '') for t in f.tiers)})"
                          for f in found) or "aucun"
-        print(f"{site.name:<20} {desc}  [{st['new']} nouveau(x), {st['confirmed']} confirmé(s)]")
+        print(f"{site.name:<20} {desc}  [{st['new']} nouveau(x), {st['confirmed']} confirmé(s), "
+              f"{st.get('missed', 0)} absent(s) cette fois ; {pages_read} page(s) lue(s) dont {len(products)} fiche(s)]")
     if not args.no_recompute:
         print(f"{recompute_index(engine)} lignes d'index recalculées.")
 

@@ -94,3 +94,37 @@ def test_upto_discount_is_not_applied():
     assert c.up_to and c.tiers == [{"min": 0.0, "pct": 36}]
     (d,) = extract_codes(TLN)
     assert not d.up_to                                   # « -20% jusqu'à 69,99 € » : palier, pas plafond
+
+
+def test_auto_code_dropped_after_two_missed_surveys(tmp_path):
+    e = db.get_engine(f"sqlite:///{tmp_path}/m.db")
+    db.init_db(e)
+    seed(e)
+    site = get_site("toutelanutrition")
+    today = date(2026, 11, 13)
+    store_found_codes(e, site, extract_codes(TLN), today=today)
+    duo = lambda: next(c for c in load_db_codes(e.connect()) if c.code == "DUO20")
+    store_found_codes(e, site, [], today=today, pages_read=0)       # site injoignable : rien ne change
+    assert duo().missed_runs == 0
+    store_found_codes(e, site, [], today=today, pages_read=1)       # 1er relevé sans le code : encore appliqué
+    assert duo().effective_confidence(today) >= 0.5
+    store_found_codes(e, site, [], today=today, pages_read=1)       # 2e relevé sans le code : retiré du prix
+    assert duo().effective_confidence(today) == 0
+    store_found_codes(e, site, extract_codes(TLN), today=today)     # réaffiché : de nouveau appliqué
+    assert duo().missed_runs == 0 and duo().effective_confidence(today) >= 0.5
+
+
+def test_product_page_codes():
+    from dosehunt.codes import PRODUCT_ONLY_CONFIDENCE, survey_site_codes
+    pages = {"/": "<p>Bienvenue</p>",
+             "/p1": "<p>-10% avec le code FICHE10</p><p>-20% avec le code SEUL20</p>",
+             "/p2": "<p>-10% avec le code FICHE10</p>"}
+    client = PoliteClient(0, respect_robots=False,
+                          transport=httpx.MockTransport(lambda r: httpx.Response(200, text=pages.get(r.url.path, ""))))
+    site = get_site("toutelanutrition")
+    base = site.root
+    got, read = survey_site_codes(site, [base + "/p1", base + "/p2"], client)
+    got = {c.code: c for c in got}
+    assert read == 3
+    assert got["FICHE10"].confidence is None                     # vu sur 2 fiches : vaut pour tout le site
+    assert got["SEUL20"].confidence == PRODUCT_ONLY_CONFIDENCE    # vu sur une seule fiche : affiché, non appliqué

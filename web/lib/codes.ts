@@ -18,9 +18,12 @@ export interface PromoCode {
   tiers: { min: number; pct: number }[] | null;
   source: string | null;
   origin: string | null;
+  missed_runs?: number | null;   // code relevé sur le site, absent des derniers relevés
 }
 
 export const MIN_CONFIDENCE = 0.5;
+/** Un code relevé sur le site et absent de 2 relevés de suite (environ 16 h) n'est plus appliqué. */
+export const MISSED_RUNS_LIMIT = 2;
 const HALF_LIFE_DAYS = 90;
 
 function toDate(d: string | Date | null): Date | null {
@@ -39,6 +42,7 @@ export function effectiveConfidence(c: PromoCode, today = new Date()): number {
   conf -= 0.15 * (c.votes_ko ?? 0);
   const end = toDate(c.ends_on);
   if (end && today.getTime() > end.getTime() + 86_400_000) conf = 0;
+  if (c.origin === "auto" && (c.missed_runs ?? 0) >= MISSED_RUNS_LIMIT) conf = 0;   // retiré du site
   return Math.max(0, Math.min(1, conf));
 }
 
