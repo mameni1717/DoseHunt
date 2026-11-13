@@ -85,7 +85,7 @@ jobs:
     env:
       RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
       ALERT_FROM: ${{ secrets.ALERT_FROM }}
-      SITE_URL: https://dose-hunt.vercel.app
+      SITE_URL: https://dosehunt.com
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

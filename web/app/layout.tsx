@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { SITE_URL } from "@/lib/site";
 import { MAIN_CATEGORIES, VITAMINS_GROUP } from "@/lib/categories";
@@ -59,8 +60,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/methode">notre méthode</Link>.
             </span>
             <span>DoseHunt compare des prix, il ne donne pas de conseil de dosage.</span>
+            <span>
+              <Link href="/mentions-legales">Mentions légales</Link> · <Link href="/confidentialite">Confidentialité</Link>
+            </span>
           </footer>
         </div>
+        <Analytics />
       </body>
     </html>
   );
