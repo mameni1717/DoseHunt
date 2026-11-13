@@ -37,7 +37,7 @@ def send(to: str, subject: str, body_html: str) -> bool:
     if not key:
         return False
     r = httpx.post("https://api.resend.com/emails", timeout=20, headers={"authorization": f"Bearer {key}"},
-                   json={"from": os.environ.get("ALERT_FROM", "DoseHunt <alertes@dosehunt.com>"), "to": to,
+                   json={"from": os.environ.get("ALERT_FROM") or "DoseHunt <alertes@dosehunt.com>", "to": to,   # secret absent = chaîne vide dans GitHub
                          "subject": subject, "html": body_html})
     if r.status_code >= 300:
         log.warning("e-mail refusé par Resend (%s) : %s", r.status_code, r.text[:200])
