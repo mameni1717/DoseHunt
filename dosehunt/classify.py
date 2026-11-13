@@ -69,7 +69,12 @@ PRE_ACTIVES_RX = [re.compile(x, re.I) for x in (
 
 
 def looks_preworkout(p: RawProduct) -> bool:
-    text = " ".join([p.title, p.body_html or "", p.page_html or ""])
+    # La description d'abord : la page entière cite aussi les produits suggérés (« vous aimerez aussi »).
+    body = p.body_html or ""
+    if len(re.sub(r"<[^>]+>", "", body)) < 200 and p.page_html:
+        from .collectors.page import zone_html
+        body = zone_html(p.page_html)
+    text = p.title + " " + body
     return sum(1 for r in PRE_ACTIVES_RX if r.search(text)) >= 2
 
 
