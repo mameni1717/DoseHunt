@@ -56,7 +56,7 @@ def page_extras(page: str, base_url: str = "") -> dict:
                 img = img[0] if img else None
             if isinstance(img, dict):
                 img = img.get("url") or img.get("contentUrl")
-            if isinstance(img, str) and img.startswith(("http", "//")):
+            if isinstance(img, str) and img.startswith(("http", "/")):
                 image = img
         agg = n.get("aggregateRating") if "Product" in t else (n if "AggregateRating" in t else None)
         if isinstance(agg, dict) and rating is None:
