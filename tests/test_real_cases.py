@@ -415,3 +415,9 @@ def test_review_topics_from_page():
     t = review_topics(page)["topics"]
     assert t["Goût"] == {"mentions": 3, "pos": 2, "neg": 1}
     assert t["Digestion"]["mentions"] == 2
+
+
+def test_rayon_cross_links_dropped():
+    from dosehunt.rayons import drop_cross_links
+    out = {"sirop": {"zinc", "whey", "preworkout"}, "evobomb": {"preworkout"}, "iso": {"whey", "collagene"}}
+    assert drop_cross_links("bulk", out) == {"evobomb": {"preworkout"}, "iso": {"whey", "collagene"}}
