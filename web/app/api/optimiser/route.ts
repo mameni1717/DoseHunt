@@ -19,7 +19,8 @@ export async function POST(req: Request) {
   const needs = (body?.needs ?? []).slice(0, 12).filter((n) =>
     n && KIND_BY_CATEGORY[n.cat] && Number.isFinite(Number(n.qty)) && Number(n.qty) > 0)
     .map((n) => ({ cat: n.cat, sub: n.sub && CATEGORY_BY_ID[n.cat].subs?.[n.sub] ? n.sub : null,
-                   qty: Math.min(Number(n.qty), 100_000), pin: typeof n.pin === "string" ? n.pin.slice(0, 300) : null }));
+                   qty: Math.min(Number(n.qty), 100_000), pin: typeof n.pin === "string" ? n.pin.slice(0, 300) : null,
+                   minActive: Number.isFinite(Number(n.minActive)) && Number(n.minActive) > 0 ? Math.min(Number(n.minActive), 100) : null }));
   if (!needs.length) return NextResponse.json({ baskets: [] });
   const { rows, codes, shipping } = await getOptimizerData([...new Set(needs.map((n) => n.cat))]);
   const opts = { firstOrder: !!body?.firstOrder, useCodes: body?.useCodes !== false };

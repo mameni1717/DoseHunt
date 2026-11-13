@@ -44,7 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <Link href="/vitamines">{VITAMINS_GROUP.short}</Link>
               <Link href="/comparer" className="navtool">Comparer</Link>
               <Link href="/alertes" className="navtool">Alertes prix</Link>
-              <Link href="/optimiser" className="navtool">Optimiser mes achats</Link>
+              <Link href="/optimiser" className="navtool cta">Optimiser mes achats</Link>
             </nav>
           </header>
           {demo && (

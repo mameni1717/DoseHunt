@@ -8,7 +8,7 @@ import { GoButton } from "@/components/client";
 
 export interface CatChoice { id: string; label: string; subs: Record<string, string>; kind: QtyKind; kindLabel: string; defaultQty: number }
 
-interface Item { cat: string; sub: string; qty: number; pin: string | null; pinLabel: string | null }
+interface Item { cat: string; sub: string; qty: number; pin: string | null; pinLabel: string | null; minActive?: number | null }
 
 interface ResLine {
   cat: string; copies: number; covered: number; cost: number; offer_id: number; product_id: number;
@@ -37,7 +37,7 @@ function qtyText(kind: QtyKind, n: number): string {
 
 export function Optimizer({ cats, shippingEstimate }: { cats: CatChoice[]; shippingEstimate: number }) {
   const byId = Object.fromEntries(cats.map((c) => [c.id, c]));
-  const [items, setItems] = useState<Item[]>([{ cat: "whey", sub: "classique", qty: byId.whey?.defaultQty ?? 1000, pin: null, pinLabel: null }]);
+  const [items, setItems] = useState<Item[]>([{ cat: "whey", sub: "classique", qty: byId.whey?.defaultQty ?? 1000, pin: null, pinLabel: null, minActive: 70 }]);
   const [firstOrder, setFirstOrder] = useState(false);
   const [useCodes, setUseCodes] = useState(true);
   const [loaded, setLoaded] = useState(false);
@@ -60,7 +60,7 @@ export function Optimizer({ cats, shippingEstimate }: { cats: CatChoice[]; shipp
   const update = (i: number, patch: Partial<Item>) => { setItems((xs) => xs.map((x, k) => (k === i ? { ...x, ...patch } : x))); setResult(null); };
   const add = () => {
     const free = cats.find((c) => !items.some((i) => i.cat === c.id)) ?? cats[0];
-    setItems((xs) => [...xs, { cat: free.id, sub: free.id === "whey" ? "classique" : "", qty: free.defaultQty, pin: null, pinLabel: null }]);
+    setItems((xs) => [...xs, { cat: free.id, sub: free.id === "whey" ? "classique" : "", qty: free.defaultQty, pin: null, pinLabel: null, minActive: free.id === "whey" ? 70 : null }]);
     setResult(null);
   };
   const remove = (i: number) => { setItems((xs) => xs.filter((_, k) => k !== i)); setResult(null); };
@@ -80,7 +80,7 @@ export function Optimizer({ cats, shippingEstimate }: { cats: CatChoice[]; shipp
     try {
       const r = await fetch("/api/optimiser", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ needs: items.map((i) => ({ cat: i.cat, sub: i.sub || null, qty: i.qty, pin: i.pin })), firstOrder, useCodes }),
+        body: JSON.stringify({ needs: items.map((i) => ({ cat: i.cat, sub: i.sub || null, qty: i.qty, pin: i.pin, minActive: i.cat === "whey" && !i.pin ? i.minActive ?? null : null })), firstOrder, useCodes }),
       });
       if (!r.ok) throw new Error(String(r.status));
       setResult((await r.json()).baskets);
@@ -98,13 +98,20 @@ export function Optimizer({ cats, shippingEstimate }: { cats: CatChoice[]; shipp
             <div key={i} className="opt-item">
               <div className="row">
                 <select className="filter" aria-label="Catégorie" value={it.cat}
-                  onChange={(e) => update(i, { cat: e.target.value, sub: e.target.value === "whey" ? "classique" : "", qty: byId[e.target.value].defaultQty, pin: null, pinLabel: null })}>
+                  onChange={(e) => update(i, { cat: e.target.value, sub: e.target.value === "whey" ? "classique" : "", qty: byId[e.target.value].defaultQty, pin: null, pinLabel: null, minActive: e.target.value === "whey" ? 70 : null })}>
                   {cats.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
                 </select>
                 {Object.keys(c.subs).length > 0 && !it.pin && (
                   <select className="filter" aria-label="Type" value={it.sub} onChange={(e) => update(i, { sub: e.target.value })}>
                     <option value="">Tous types</option>
                     {Object.entries(c.subs).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                )}
+                {it.cat === "whey" && !it.pin && (
+                  <select className="filter" aria-label="Taux de protéine minimum" value={it.minActive ?? ""}
+                    onChange={(e) => update(i, { minActive: e.target.value ? Number(e.target.value) : null })}>
+                    <option value="">Protéine : tout taux</option>
+                    {[60, 70, 75, 80, 85, 90].map((v) => <option key={v} value={v}>Protéine ≥ {v} %</option>)}
                   </select>
                 )}
                 <label className="opt-qty">

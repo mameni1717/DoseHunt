@@ -251,3 +251,13 @@ nav.cats a.navtool[aria-current="page"] { background: var(--blaze); color: #fff;
 .opt-note { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
 .opt-copies { display: none; }
 @media (max-width: 560px) { .opt-unit { display: none; } .opt-copies { display: inline; } .opt-lines .btn { padding: 6px 8px; } }
+/* « Optimiser mes achats » mis en avant */
+nav.cats a.navtool.cta { background: var(--blaze); color: #fff; border-color: var(--blaze); box-shadow: 0 2px 0 rgba(0,0,0,.12); }
+nav.cats a.navtool.cta::before { content: "★ "; }
+.opt-banner { display: grid; gap: 4px; margin: 18px 0; padding: 18px 20px; border-radius: 14px; text-decoration: none; color: #fff;
+  background: linear-gradient(120deg, var(--blaze), #ff8a3d); box-shadow: 0 6px 18px rgba(255, 91, 20, .25); }
+.opt-banner strong { font: 700 24px var(--display, inherit); letter-spacing: .01em; }
+.opt-banner span { font-size: 14px; opacity: .95; }
+.opt-banner .opt-banner-kicker { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; font-weight: 700; opacity: .9; }
+.opt-banner .opt-banner-go { font-weight: 700; margin-top: 4px; }
+.opt-banner:hover { filter: brightness(1.05); }

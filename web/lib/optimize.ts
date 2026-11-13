@@ -28,6 +28,7 @@ export interface Need {
   qty: number;
   pin?: string | null;         // clé produit (catégorie | marque | nom sans arôme ni taille) : ce produit-là partout
   pinLabel?: string | null;
+  minActive?: number | null;   // taux de protéine minimum (%), poudres lues pour 100 g
 }
 
 export interface Line {
@@ -79,7 +80,8 @@ function bestLine(need: Need, rows: IndexRow[], flavours: Set<string>): Line | n
     if (!r.available || r.category !== need.cat) continue;
     if (need.sub && r.subcategory !== need.sub) continue;
     if (need.pin && productKey(r, flavours) !== need.pin) continue;
-    if (!need.pin && r.combined) continue;   // « whey + collagène » ne compte pas comme le collagène de la liste
+    if (!need.pin && r.combined) continue;
+    if (need.minActive && !(r.basis === "per_100g" && r.unit === "g" && (r.amount ?? 0) >= need.minActive)) continue;   // « whey + collagène » ne compte pas comme le collagène de la liste
     const m = measure(r, kind);
     if (!m || m <= 0) continue;
     const copies = Math.max(1, Math.ceil(need.qty / m - 1e-9));

@@ -23,6 +23,12 @@ export default async function Home() {
           <button type="submit">Chercher</button>
         </form>
       </section>
+      <Link href="/optimiser" className="opt-banner">
+        <span className="opt-banner-kicker">Nouveau</span>
+        <strong>Optimiser mes achats</strong>
+        <span>Whey, créatine, barres… indique ce que tu prends : on trouve les 3 sites où tout commander au moins cher, code promo et livraison offerte compris.</span>
+        <span className="opt-banner-go">Composer mon panier →</span>
+      </Link>
       <section className="grid" aria-label="Catégories">
         {MAIN_CATEGORIES.map((c) => <CategoryTile key={c.id} c={c} h={home[c.id]} />)}
         <Link href="/vitamines" className="catcard group">
