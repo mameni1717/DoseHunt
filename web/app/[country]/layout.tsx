@@ -12,8 +12,8 @@ import { alternates } from "@/lib/seo";
 import { CompareBar } from "@/components/client";
 import { CountryBanner, CountrySwitcher, type CountryChoice } from "@/components/CountrySwitcher";
 
-// Un segment par pays connu ; tout autre code donne une page 404.
-export const dynamicParams = false;
+// Un segment par pays connu ; tout autre code donne une page 404 (notFound plus bas). Pas de dynamicParams = false
+// ici : il s'appliquerait aussi aux fiches produit (/p/[id]), générées à la première visite.
 export function generateStaticParams() {
   return ALL_COUNTRIES.map((c) => ({ country: segmentOf(c) }));
 }
