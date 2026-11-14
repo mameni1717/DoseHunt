@@ -448,16 +448,13 @@ sites:
     language: es
     platform: magento 2 (Hyvä)
     collector: magento
-    status: blocked
+    status: active
     filters:
       sitemaps: [/sitemaps/dcom/sitemap.xml]
       product_pattern: '^https://www\.hsnstore\.com/marcas/[^/]+/[^/]+$'
       prefilter_url: true
     notes: >-
-      13/11/2026 : robots.txt 200 et permissif, mais l'accueil, products.json et le sitemap renvoient 403
-      (page Cloudflare « Just a moment… ») à notre robot. On ne contourne pas. hsnstore.fr renvoie aussi 403
-      (« Sorry, you have been blocked ») le même soir : l'entrée hsn (FR) est touchée. Voie : programme
-      d'affiliation HSN (utm_source=hsnaffiliate visible dans robots.txt) ou demande d'accès.
+      14/11/2026 : depuis GitHub Actions (réseau de la collecte), le robot déclaré est accepté : robots.txt, accueil, sitemap et fiche en 200 avec JSON-LD (sonde scripts/probe_sites.py). Le 403 du 13/11 venait du réseau du bac à sable, pas d'un refus du robot.
 
   - id: naturitas-es
     name: Naturitas
@@ -467,16 +464,14 @@ sites:
     language: es
     platform: magento 2
     collector: magento
-    status: blocked
+    status: active
     filters:
       sitemaps: [/sitemap.xml]
       product_pattern: '^https://www\.naturitas\.es/p/(?:suplementos|alimentacion/alimentacion-deportiva)/'
       prefilter_url: true
       free_shipping_from: 49
     notes: >-
-      13/11/2026 : robots.txt, accueil et sitemaps répondent 200 (11 654 fiches /p/), mais deux fiches produit
-      renvoient 403 « Sorry, you have been blocked » (Cloudflare). On ne contourne pas. Accueil « Envío Gratis a
-      partir de 49€ ». Voie : programme d'affiliation Naturitas (page /programa-de-afiliacion dans le sitemap).
+      14/11/2026 : depuis GitHub Actions (réseau de la collecte), le robot déclaré est accepté : robots.txt, accueil, sitemap et fiche en 200 avec JSON-LD (sonde scripts/probe_sites.py). Le 403 du 13/11 venait du réseau du bac à sable, pas d'un refus du robot.
 
   - id: nutrimuscle-es
     name: Nutrimuscle
@@ -501,13 +496,13 @@ sites:
     language: es
     platform: inconnue
     collector: page
-    status: blocked
+    status: active
     filters:
       sitemaps: [/es/sitemap/products.xml]
+      product_pattern: '^https://www\.nutritienda\.com/es/'
+      prefilter_url: true
     notes: >-
-      13/11/2026 : robots.txt 200 (n'interdit pas notre robot ; sitemap /es/sitemap/products.xml déclaré), mais
-      /es, products.json et le sitemap produits renvoient 403 (Cloudflare « Just a moment… »). On ne contourne
-      pas. Voie : programme d'affiliation ou demande d'accès.
+      14/11/2026 : depuis GitHub Actions (réseau de la collecte), le robot déclaré est accepté : robots.txt, accueil, sitemap et fiche en 200 avec JSON-LD (sonde scripts/probe_sites.py). Le 403 du 13/11 venait du réseau du bac à sable, pas d'un refus du robot.
 
   - id: prozis-es
     name: Prozis
@@ -547,12 +542,15 @@ sites:
     country: ES
     currency: EUR
     language: es
-    platform: inconnue
+    platform: magento
     collector: page
-    status: blocked
+    status: active
+    delay_seconds: 2.0
+    filters:
+      product_pattern: '^https://gymbeam\.es/[a-z0-9-]+\.html$'
+      prefilter_url: true
     notes: >-
-      13/11/2026 : gymbeam.es existe mais robots.txt renvoie 403 (Cloudflare « Just a moment… »). On ne
-      contourne pas. Le CSV le donnait « non listé / ne livre pas » : livraison en Espagne non vérifiable.
+      14/11/2026 : depuis GitHub Actions (réseau de la collecte), le robot déclaré est accepté : robots.txt, accueil, sitemap et fiche en 200 avec JSON-LD (sonde scripts/probe_sites.py). Le 403 du 13/11 venait du réseau du bac à sable, pas d'un refus du robot. gymbeam.es : boutique espagnole (lang es, EUR), Magento, catalogue large (vêtements, accessoires) : préfiltre par adresse.
 
   - id: nutripure-es
     name: Nutripure
