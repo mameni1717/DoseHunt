@@ -339,7 +339,7 @@ sites:
     country: ES
     currency: EUR
     language: es
-    platform: custom (Adobe Commerce, vitrine Edge Delivery)
+    platform: custom (Adobe Commerce)
     collector: page
     status: active
     delay_seconds: 2.0
