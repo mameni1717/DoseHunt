@@ -10,9 +10,9 @@ Branche : `multi-pays`. Ce fichier sert à reprendre le travail après une coupu
 
 ## État
 - [x] Étape 0 : dépôt cloné, branche créée, code lu
-- [~] Phase 1 web : FAIT country.ts, i18n (t/tp/rich), href, data.ts par pays + test anti-oubli, routage app/[country] + proxy.ts, layout + accueil + 404 traduits, sélecteur/bandeau/cookie/api/geo, sitemaps par pays, robots, seo.ts (hreflang). EN COURS (3 agents) : OfferCard/catégorie/recherche/vitamines ; fiche/comparer/alertes ; Optimiser/méthode/légal
-- [ ] Phase 1 collecte : règles par langue, pays en base (agent)
-- [ ] Phase 2 : tri des sites ES (agent), config, règles ES, collecte, codes, vérif en ligne
+- [x] Phase 1 web (fusionnée sur main le 14/11 01:05, France vérifiée identique : top 10 whey/pré-workout, sitemap 1937 URL, fiche produit) : FAIT country.ts, i18n (t/tp/rich), href, data.ts par pays + test anti-oubli, routage app/[country] + proxy.ts, layout + accueil + 404 traduits, sélecteur/bandeau/cookie/api/geo, sitemaps par pays, robots, seo.ts (hreflang). EN COURS (3 agents) : OfferCard/catégorie/recherche/vitamines ; fiche/comparer/alertes ; Optimiser/méthode/légal
+- [x] Phase 1 collecte : règles par langue, pays en base, calculs/e-mails dans la langue
+- [~] Phase 2 : tri fait (5 collectables, 8 bloqués), config ajoutée ; collecte complète lancée run 43532109263 (00:10 UTC). RESTE : lire journaux + gaps, relire catégories /es, codes, activer ES (country.ts active:true), vérif en ligne
 - [ ] Bilan + notification
 
 ## Journal
