@@ -53,8 +53,27 @@ def probe(site) -> None:
         print(f"{site.id:18} " + "  ".join(f"{k}={v}" for k, v in out.items()) + (f"  ({fiche})" if fiche else ""), flush=True)
 
 
+def discover(site) -> None:
+    """Adresses de fiches que trouverait la collecte (sitemaps, motifs, préfiltre), sans rien lire ni écrire en base."""
+    import time
+    from dosehunt.collectors import collector_for
+    t = time.time()
+    col = collector_for(site)
+    try:
+        urls = col.discover()
+    except Exception as e:                               # noqa: BLE001
+        print(f"{site.id:18} découverte impossible : {e}", flush=True)
+        return
+    print(f"{site.id:18} {len(urls)} fiches retenues en {time.time() - t:.0f} s ; exemples : {urls[:3]}", flush=True)
+
+
 def main() -> None:
-    wanted = sys.argv[1:]
+    args = sys.argv[1:]
+    if args and args[0] == "--discover":
+        for sid in args[1:]:
+            discover(sites()[sid])
+        return
+    wanted = args
     for s in sites().values():
         if (wanted and s.id in wanted) or (not wanted and s.status in ("blocked", "decide")):
             try:

@@ -36,6 +36,8 @@ function chosen(): string | null {
 /** Même page dans un autre pays : catégorie → même catégorie ; fiche produit → accueil du pays. */
 export function equivalentPath(pathname: string, search: string, from: CountryChoice | undefined, to: CountryChoice): string {
   let rest = pathname;
+  // La France est servie par réécriture : côté navigateur, le chemin peut apparaître avec le segment interne /fr.
+  if (rest === "/fr" || rest.startsWith("/fr/")) rest = rest.slice(3) || "/";
   if (from?.path && (rest === `/${from.path}` || rest.startsWith(`/${from.path}/`))) rest = rest.slice(from.path.length + 1) || "/";
   if (rest.startsWith("/p/")) rest = "/";
   const q = rest.startsWith("/c/") ? search : "";

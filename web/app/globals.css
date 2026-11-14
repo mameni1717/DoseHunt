@@ -263,7 +263,7 @@ nav.cats a.navtool.cta::before { content: "★ "; }
 .opt-banner:hover { filter: brightness(1.05); }
 
 /* Choix du pays : sélecteur dans l'en-tête et bandeau de suggestion */
-.country-switch { position: relative; font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+.country-switch { position: relative; grid-column: auto; margin-top: 0; border-top: 0; padding-top: 0; font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; }
 .country-switch summary { list-style: none; cursor: pointer; border: 1px solid var(--line); padding: 6px 8px; border-radius: 4px; color: var(--muted); }
 .country-switch summary::-webkit-details-marker { display: none; }
 .country-switch ul { position: absolute; z-index: 20; margin: 4px 0 0; padding: 4px; list-style: none; background: var(--card); border: 1px solid var(--line); border-radius: 6px; min-width: 160px; box-shadow: 0 6px 20px rgba(0,0,0,.08); }

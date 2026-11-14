@@ -29,8 +29,8 @@ export const COUNTRIES: Record<string, Country> = {
   ES: {
     code: "ES", path: "es", lang: "es", locale: "es-ES", hreflang: "es-ES", ogLocale: "es_ES", currency: "EUR", symbol: "€",
     name: "España", flag: "🇪🇸", madeIn: "Fabricado en España", filter: "Solo fabricados en España", inCountry: "en España",
-    // Caché tant que l'Espagne n'a pas de marchands : la version existe à son adresse mais n'est annoncée nulle part.
-    active: false,
+    // Ouvert le 14/11/2026 (9 marchands collectés) : sélecteur, bandeau, sitemap et hreflang.
+    active: true,
   },
 };
 
