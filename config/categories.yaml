@@ -129,7 +129,7 @@ categories:
     exclude: ['multivitamin', 'multi-vitamin', 'multivitamine']
     es:
       include: ['vitamina d3?\b', 'colecalciferol']
-      exclude: ['multivitam[íi]nico']
+      exclude: ['multivitam[íi]nico', 'col[áa]geno', 'uc-?ii']
 
   omega3:
     label: Oméga-3

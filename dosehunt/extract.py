@@ -573,7 +573,7 @@ def _per_serving_text(text: str, noun_rx: str, lang: str = "fr") -> Optional[tup
         val, unit = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
         grams = _f(val) / (1000 if unit.lower() == "mg" else 1)
         if 0 < grams <= size:
-            return round(grams / size * 100, 1), f"{m.group(0)} pour une portion de {size:g} g"
+            return round(grams / size * 100, 1), f"{m.group(0)} {'por dosis de' if lang == 'es' else 'pour une portion de'} {size:g} g"
     return None
 
 

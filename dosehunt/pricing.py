@@ -126,24 +126,40 @@ class Computed:
     calc: list[str]
 
 
-def compute(category: str, price: float, fmt: Format, ac: ActiveContent, applied: Optional[AppliedCode]) -> Computed:
+# Lignes du calcul affichées sur le site (« Voir le calcul ») : dans la langue du site. Le site web retrouve la ligne
+# du contenu par son premier mot (« Contenu », « Contenido »).
+_CALC = {
+    "fr": {"price": "Prix affiché : {p:.2f} €", "code": "Code {c} : -{d:.2f} € → {f:.2f} €", "nocode": "Code : aucun → {f:.2f} €",
+           "c100": "Contenu : {g:g} g × {s} = {t:g} {u} d'actif", "per100": "{a:g} {u} pour 100 g",
+           "cserv": "Contenu : {g:g} g ÷ portion de {a:g} g = {t:.0f} portions",
+           "cunit": "Contenu : {n} unités × {a:g} {u} = {t:g} {u} d'actif"},
+    "es": {"price": "Precio mostrado: {p:.2f} €", "code": "Código {c}: -{d:.2f} € → {f:.2f} €", "nocode": "Código: ninguno → {f:.2f} €",
+           "c100": "Contenido: {g:g} g × {s} = {t:g} {u} de activo", "per100": "{a:g} {u} por 100 g",
+           "cserv": "Contenido: {g:g} g ÷ dosis de {a:g} g = {t:.0f} dosis",
+           "cunit": "Contenido: {n} unidades × {a:g} {u} = {t:g} {u} de activo"},
+}
+
+
+def compute(category: str, price: float, fmt: Format, ac: ActiveContent, applied: Optional[AppliedCode],
+            lang: str = "fr") -> Computed:
     c = categories()[category]
+    T = _CALC.get(lang, _CALC["fr"])
     final = applied.final if applied else price
-    calc = [f"Prix affiché : {price:.2f} €"]
-    calc.append(f"Code {applied.code.code} : -{applied.discount:.2f} € → {final:.2f} €" if applied else f"Code : aucun → {final:.2f} €")
+    calc = [T["price"].format(p=price)]
+    calc.append(T["code"].format(c=applied.code.code, d=applied.discount, f=final) if applied else T["nocode"].format(f=final))
 
     grams, units = fmt.total_grams, fmt.total_units
     total_active = None
     if ac.basis == "per_100g" and grams:
         total_active = grams * ac.amount / 100
-        share = f"{ac.amount:g} %" if ac.unit == "g" else f"{ac.amount:g} {ac.unit} pour 100 g"
-        calc.append(f"Contenu : {grams:g} g × {share} = {total_active:g} {ac.unit} d'actif")
+        share = f"{ac.amount:g} %" if ac.unit == "g" else T["per100"].format(a=ac.amount, u=ac.unit)
+        calc.append(T["c100"].format(g=grams, s=share, t=total_active, u=ac.unit))
     elif ac.basis == "per_serving" and grams:
         total_active = grams / ac.amount                 # nombre de portions dans le contenant
-        calc.append(f"Contenu : {grams:g} g ÷ portion de {ac.amount:g} g = {total_active:.0f} portions")
+        calc.append(T["cserv"].format(g=grams, a=ac.amount, t=total_active))
     elif ac.basis == "per_unit" and units:
         total_active = units * ac.amount
-        calc.append(f"Contenu : {units} unités × {ac.amount:g} {ac.unit} = {total_active:g} {ac.unit} d'actif")
+        calc.append(T["cunit"].format(n=units, a=ac.amount, u=ac.unit, t=total_active))
 
     dose = None
     if total_active and ac.basis == "per_serving":

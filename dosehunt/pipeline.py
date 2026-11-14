@@ -628,7 +628,7 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
                     db.review_queue.c.resolved.is_(False))).values(resolved=True))
                 if cache is not None:
                     cache.open_reviews.pop(review_key, None)
-            res = compute(cl.category, v.price, fmt, ac, applied)
+            res = compute(cl.category, v.price, fmt, ac, applied, site.language)
             index_upserts[:] = [r for r in index_upserts if (r["offer_id"], r["category"]) != (offer_id, cl.category)]
             index_upserts.append({
                 "offer_id": offer_id, "category": cl.category, "subcategory": cl.subcategory,
@@ -865,7 +865,8 @@ def recompute_index(engine: Engine) -> int:
             fmt = Format(grams=r["grams"], units=r["units"], unit_word=r["unit_word"], raw=r["format_label"] or "")
             ac = ActiveContent(r["category"], r["active"], r["amount"], r["unit"], r["basis"], r["source"], r["confidence"])
             applied = best_code(r["site_id"], r["country"], r["category"], r["price"], r["compare_at_price"] is not None, codes)
-            res = compute(r["category"], r["price"], fmt, ac, applied)
+            site_cfg = sites().get(r["site_id"])
+            res = compute(r["category"], r["price"], fmt, ac, applied, site_cfg.language if site_cfg else "fr")
             changes.append({"b_id": r["index_id"], "final_price": res.final_price, "code": res.code,
                             "dose_value": res.dose_value, "kg_value": res.kg_value, "unit_value": res.unit_value,
                             "calc": res.calc, "computed_at": now})

@@ -28,6 +28,37 @@ COLUMN = {"price": "i.final_price", "dose": "i.dose_value", "kg": "i.kg_value", 
 UNIT = {"price": "€"}
 
 
+# E-mails dans la langue du pays de l'alerte, liens vers la bonne version du site (France à la racine, /es…).
+PREFIX = {"FR": "", "ES": "/es"}
+MAIL = {
+    "fr": {
+        "confirm_subject": "Confirme ton alerte prix DoseHunt",
+        "confirm_body": "<p>Bonjour,</p><p>Pour activer ton alerte prix, clique ici : <a href=\"{link}\">confirmer l'alerte</a>.</p>"
+                        "<p>Si tu n'es pas à l'origine de cette demande, ignore ce message.</p>",
+        "drop_subject": "Baisse de prix : {name} à {value}",
+        "drop_body": "<p><b>{name}</b> est passé sous ton seuil de {threshold} : <b>{value}</b> (selon le mode choisi).</p>"
+                     "<p><a href=\"{where}\">Voir l'offre sur DoseHunt</a></p>"
+                     "<p style=\"color:#777\">Les prix changent vite : vérifie le prix chez le marchand avant d'acheter. "
+                     "<a href=\"{stop}\">Ne plus recevoir cette alerte</a>.</p>",
+    },
+    "es": {
+        "confirm_subject": "Confirma tu alerta de precio de DoseHunt",
+        "confirm_body": "<p>Hola:</p><p>Para activar tu alerta de precio, haz clic aquí: <a href=\"{link}\">confirmar la alerta</a>.</p>"
+                        "<p>Si no has pedido esta alerta, ignora este mensaje.</p>",
+        "drop_subject": "Bajada de precio: {name} a {value}",
+        "drop_body": "<p><b>{name}</b> ha bajado de tu precio límite de {threshold}: <b>{value}</b> (según el modo elegido).</p>"
+                     "<p><a href=\"{where}\">Ver la oferta en DoseHunt</a></p>"
+                     "<p style=\"color:#777\">Los precios cambian rápido: comprueba el precio en la tienda antes de comprar. "
+                     "<a href=\"{stop}\">No recibir más esta alerta</a>.</p>",
+    },
+}
+LANG = {"FR": "fr", "ES": "es"}
+
+
+def _lang(country: Optional[str]) -> str:
+    return LANG.get((country or "FR").upper(), "fr")
+
+
 def site_url() -> str:
     return os.environ.get("SITE_URL", "https://dosehunt.com").rstrip("/")
 
@@ -69,13 +100,12 @@ def run(engine: Engine) -> dict[str, int]:
     if not os.environ.get("RESEND_API_KEY"):
         log.warning("RESEND_API_KEY absent : aucune alerte envoyée (les inscriptions restent en attente)")
     with engine.begin() as conn:
-        pending = conn.execute(text("""select id, email, token from price_alerts
+        pending = conn.execute(text("""select id, email, token, country from price_alerts
                                         where active and not confirmed and confirm_sent_at is null""")).all()
         for a in pending:
             link = f"{site_url()}/api/alerts/confirm?token={a.token}"
-            if send(a.email, "Confirme ton alerte prix DoseHunt",
-                    f"<p>Bonjour,</p><p>Pour activer ton alerte prix, clique ici : <a href=\"{link}\">confirmer l'alerte</a>.</p>"
-                    "<p>Si tu n'es pas à l'origine de cette demande, ignore ce message.</p>"):
+            M = MAIL[_lang(a.country)]
+            if send(a.email, M["confirm_subject"], M["confirm_body"].format(link=link)):
                 conn.execute(text("update price_alerts set confirm_sent_at = CURRENT_TIMESTAMP where id = :id"), {"id": a.id})
                 stats["confirmations"] += 1
         alerts = conn.execute(text("select * from price_alerts where active and confirmed")).all()
@@ -90,14 +120,14 @@ def run(engine: Engine) -> dict[str, int]:
             sent = False
             if below and armed:
                 unit = UNIT.get(a.mode, "")
-                where = f"{site_url()}/p/{pid}" if pid else f"{site_url()}/c/{a.category}"
+                base = site_url() + PREFIX.get((a.country or "FR").upper(), "")
+                where = f"{base}/p/{pid}" if pid else f"{base}/c/{a.category}"
                 stop = f"{site_url()}/api/alerts/stop?token={a.token}"
-                sent = send(a.email, f"Baisse de prix : {name} à {value:.2f}{(' ' + unit) if unit else ''}".replace(".", ","),
-                            f"<p><b>{html.escape(name)}</b> est passé sous ton seuil de {a.threshold:.2f} : "
-                            f"<b>{value:.2f}</b>{(' ' + unit) if unit else ''} (selon le mode choisi).</p>"
-                            f"<p><a href=\"{where}\">Voir l'offre sur DoseHunt</a></p>"
-                            f"<p style=\"color:#777\">Les prix changent vite : vérifie le prix chez le marchand avant d'acheter. "
-                            f"<a href=\"{stop}\">Ne plus recevoir cette alerte</a>.</p>")
+                M = MAIL[_lang(a.country)]
+                shown = f"{value:.2f}{(' ' + unit) if unit else ''}"
+                sent = send(a.email, M["drop_subject"].format(name=name, value=shown).replace(".", ","),
+                            M["drop_body"].format(name=html.escape(name), threshold=f"{a.threshold:.2f}", value=shown,
+                                                  where=where, stop=stop))
                 stats["alerts_sent"] += int(sent)
             conn.execute(text("update price_alerts set last_value = :v" + (", last_notified_at = CURRENT_TIMESTAMP" if sent else "")
                               + " where id = :id"), {"v": value, "id": a.id})

@@ -99,7 +99,7 @@ export function OfferCard({ r, rank, mode, best, country }: { r: Ranked; rank: n
   const pre = r.category === "preworkout" ? Object.values(r.attributes?.preworkout ?? {}) : [];
 
   const unit = unitFor(country, r.category, mode, r);
-  const content = (r.calc ?? []).find((l) => l.startsWith("Contenu"));
+  const content = (r.calc ?? []).find((l) => l.startsWith("Contenu") || l.startsWith("Contenido"));
   const calc = [
     t(L, "offer.calc.price", { price: money(r.price) }) + (r.compare_at_price ? t(L, "offer.calc.was", { price: money(r.compare_at_price) }) : ""),
     a ? t(L, "offer.calc.code", { code: a.code.code, pct, final: money(r.final) }) : t(L, "offer.calc.noCode", { final: money(r.final) }),

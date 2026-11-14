@@ -191,20 +191,6 @@ sites:
   # Espagne : une entrée par marchand ET par pays (id marchand-pays). `language` est déduit du pays (ES → es)
   # et choisit les règles de lecture espagnoles ; require_language écarte les fiches dans une autre langue.
   # status todo : pas encore collecté (absent de sites-json) tant que le pays n'est pas ouvert.
-  - id: myprotein-es
-    name: Myprotein
-    base_url: https://www.myprotein.es
-    platform: custom (THG)
-    collector: page
-    status: todo
-    country: ES
-    language: es
-    filters:
-      sitemaps: [/sitemapindex-product.xml.gz]
-      product_pattern: '/p/'
-      prefilter_url: true
-      require_language: true
-    notes: "Même plateforme que myprotein (France). robots.txt autorise /p/ (vérifié le 13/11/2026). Livraison offerte dès 55 € (accueil)."
   - id: prozis
     name: Prozis
     base_url: https://www.prozis.com
@@ -322,3 +308,262 @@ sites:
       Décidé le 11/11/2026 : nu3 n'a plus de site propre, on suit les produits nu3 vendus par Redcare Pharmacie.
       La page marque est interdite aux robots (robots.txt) : découverte par les sitemaps produits (fiches autorisées),
       filtrés sur les URL « nu3-… ». Format souvent absent du titre : lu dans « Poids net » ou « Contenance ».
+
+  # ==================== ESPAGNE (tri du 13-14/11/2026, détails : rapport de tri dans le bilan) ====================
+  # ---------- Espagne : collectables ----------
+  - id: myprotein-es
+    name: Myprotein
+    base_url: https://www.myprotein.es
+    country: ES
+    currency: EUR
+    language: es
+    platform: custom (THG)
+    collector: page
+    status: active
+    delay_seconds: 2.0
+    filters:
+      sitemaps: [/sitemapindex-product.xml.gz]
+      # 1 437 fiches dans le sitemap dont 1 091 vêtements : on ne garde que nutrition et vitamines (~260)
+      product_pattern: '/p/(?:nutricion-deportiva|vitamins)/'
+      prefilter_url: true
+      free_shipping_from: 55
+    notes: >-
+      13/11/2026 : robots.txt autorise les fiches /p/ et le sitemap produits (200). JSON-LD ProductGroup avec
+      toutes les déclinaisons et leurs prix en EUR (Impact Whey : 138 variantes). Accueil « Envío Gratis a partir
+      de 55€ ». Site en espagnol (lang="es"). Même structure que l'entrée myprotein (FR).
+
+  - id: bulk-es
+    name: Bulk
+    base_url: https://www.bulk.com
+    path_prefix: /es
+    country: ES
+    currency: EUR
+    language: es
+    platform: custom (Adobe Commerce, vitrine Edge Delivery)
+    collector: page
+    status: active
+    delay_seconds: 2.0
+    filters:
+      sitemaps: [/media/feeds/sitemapES.xml]
+      product_pattern: '/es/products/'
+      prefilter_url: true
+      sku_format: '-(?P<flavour>[A-Z0-9]{3,5})-(?P<size>\d{4})(?:-[A-Z]{2,3})?$'
+      free_shipping_from: 60
+    notes: >-
+      13/11/2026 : la boutique espagnole existe (bulk.com/es/, lang="es-es"), contrairement à la remarque du CSV.
+      Le sitemap feeds/sitemapES.xml liste 229 fiches /es/products/ (sitemap-es.xml ne contient que des pages).
+      Une offre JSON-LD par déclinaison, références au format BPB-CMON-0000-0100-EU (format lisible par
+      sku_format, comme en France). « Envío gratis a partir de 60€ ». Fiches légères (~11 Ko) : description
+      chargée en JavaScript, comme pour l'entrée bulk (FR).
+
+  - id: masmusculo-es
+    name: MASmusculo
+    base_url: https://www.masmusculo.com
+    country: ES
+    currency: EUR
+    language: es
+    platform: shopify
+    collector: shopify
+    status: active
+    delay_seconds: 2.0
+    notes: >-
+      13/11/2026 : products.json répond (200), robots.txt l'autorise. Revendeur multimarques espagnol
+      (BioTech, Amix, ON, Scitec, Life Pro…), ~3 000 fiches dans les sitemaps produits. product_type fiable et
+      en espagnol (« Proteina de Suero Whey », « Creatina monohidrato », « Pre entreno », « Minerales »,
+      « ZMA »…) : utile pour les rayons. Catalogue aussi non sportif (accessoires, « Mochila Táctica »).
+      Pas de seuil de livraison offerte affiché : « te regalamos los gastos de envío en la mayoría de
+      productos de nutrición deportiva » (gratuité par produit, pas de free_shipping_from).
+
+  - id: zumub-es
+    name: Zumub
+    base_url: https://www.zumub.com
+    path_prefix: /ES
+    country: ES
+    currency: EUR
+    language: es
+    platform: custom (osCommerce)
+    collector: page
+    status: active
+    delay_seconds: 3.5
+    filters:
+      start_urls: [/ES/]
+      category_pattern: '^https://www\.zumub\.com/ES/(?:[a-z0-9-]*-c-[\d_]+|(?:nutricion-deportiva|salud-y-bienestar|proteinas|aislados-de-suero|creatina|pre-entrenamiento|vitaminas-y-minerales|zinc|vitamina-c|vitamina-d|omega-3|colageno|barras-bebidas-y-geles|aminoacidos-bcaas)(?:/[a-z0-9-]+)?)$'
+      product_pattern: '-p-\d+$|^https://www\.zumub\.com/ES/(?:[a-z0-9-]*-c-[\d_]+|[a-z0-9-]+/[a-z0-9-]+)/[a-z0-9-]+$'
+      prefilter_url: true
+      rayon_nested: true
+      rayon_product_pattern: '-p-\d+$|^https://www\.zumub\.com/ES/[a-z0-9-]+/[a-z0-9-]+(?:/[a-z0-9-]+)?$'
+      free_shipping_from: 30
+    notes: >-
+      13/11/2026 : robots.txt autorise tout (« Disallow: » vide pour *). Pas de sitemap : parcours des catégories,
+      comme l'entrée zumub (FR). JSON-LD ProductGroup (formats, prix) ou Product simple selon la fiche.
+      Accueil « ENVÍO GRATIS A PARTIR DE €30 ». Délai de 3,5 s repris de la France (429 à 2 s le 11/11).
+      Vérifier la liste des catégories de category_pattern après une première passe (rayons détectés par
+      rayons.py).
+
+  - id: sundaynatural-es
+    name: Sunday Natural
+    base_url: https://www.sunday-natural.es
+    country: ES
+    currency: EUR
+    language: es
+    platform: magento 2 (Hyvä)
+    collector: magento
+    status: active
+    delay_seconds: 2.0
+    filters:
+      sitemaps: [https://media.sunday-natural.com/media/sitemap_es.xml]
+      product_pattern: '^https://www\.sunday-natural\.es/[a-z0-9-]+\.html$'
+      prefilter_url: true
+      free_shipping_from: 99
+    notes: >-
+      13/11/2026 : robots.txt autorise les fiches .html ; sitemap espagnol (570 adresses) déclaré dans robots.txt.
+      JSON-LD Product avec prix EUR et disponibilité. Packs « -pack-ahorro » à exclure (règle pack en espagnol :
+      « pack ahorro »). Page /envio/ : envío gratis desde 99 € (España peninsular, DHL 3,90 €). Pas d'entrée
+      française existante dans sites.yaml. Catalogue large (cosmétique, huiles essentielles…).
+
+  # ---------- Espagne : à décider ----------
+  - id: bodyandfit-es
+    name: Body&Fit
+    base_url: https://www.bodyandfit.com
+    path_prefix: /en-row
+    country: ES
+    currency: EUR
+    language: en
+    platform: shopify
+    collector: shopify
+    status: decide
+    delay_seconds: 2.0
+    notes: >-
+      13/11/2026 : pas de version espagnole (/es-es → 404). Les hreflang en-ES/fr-ES/de-ES pointent vers
+      /en-row, /fr-row, /de-row. Prix en EUR différents de /fr-fr (Isolate Perfection 39,99 € contre 41,49 €).
+      Shopify, robots.txt autorise products.json. Fiches en anglais (ou /fr-row en français) : à décider si on
+      affiche un marchand sans page en espagnol. Seuil de livraison du bandeau en livres (« over £50 ») : non fiable.
+
+  # ---------- Espagne : bloqués (on ne contourne pas) ----------
+  - id: hsn-es
+    name: HSN
+    base_url: https://www.hsnstore.com
+    country: ES
+    currency: EUR
+    language: es
+    platform: magento 2 (Hyvä)
+    collector: magento
+    status: blocked
+    filters:
+      sitemaps: [/sitemaps/dcom/sitemap.xml]
+      product_pattern: '^https://www\.hsnstore\.com/marcas/[^/]+/[^/]+$'
+      prefilter_url: true
+    notes: >-
+      13/11/2026 : robots.txt 200 et permissif, mais l'accueil, products.json et le sitemap renvoient 403
+      (page Cloudflare « Just a moment… ») à notre robot. On ne contourne pas. hsnstore.fr renvoie aussi 403
+      (« Sorry, you have been blocked ») le même soir : l'entrée hsn (FR) est touchée. Voie : programme
+      d'affiliation HSN (utm_source=hsnaffiliate visible dans robots.txt) ou demande d'accès.
+
+  - id: naturitas-es
+    name: Naturitas
+    base_url: https://www.naturitas.es
+    country: ES
+    currency: EUR
+    language: es
+    platform: magento 2
+    collector: magento
+    status: blocked
+    filters:
+      sitemaps: [/sitemap.xml]
+      product_pattern: '^https://www\.naturitas\.es/p/(?:suplementos|alimentacion/alimentacion-deportiva)/'
+      prefilter_url: true
+      free_shipping_from: 49
+    notes: >-
+      13/11/2026 : robots.txt, accueil et sitemaps répondent 200 (11 654 fiches /p/), mais deux fiches produit
+      renvoient 403 « Sorry, you have been blocked » (Cloudflare). On ne contourne pas. Accueil « Envío Gratis a
+      partir de 49€ ». Voie : programme d'affiliation Naturitas (page /programa-de-afiliacion dans le sitemap).
+
+  - id: nutrimuscle-es
+    name: Nutrimuscle
+    base_url: https://es.nutrimuscle.com
+    country: ES
+    currency: EUR
+    language: es
+    platform: shopify
+    collector: shopify
+    status: blocked
+    notes: >-
+      13/11/2026 : robots.txt 200 (Shopify standard), mais accueil, products.json et sitemap.xml renvoient 403
+      (Cloudflare « Just a moment… »), comme l'entrée française. On ne contourne pas : partenariat ou flux
+      d'affiliation.
+
+  - id: nutritienda-es
+    name: Nutritienda
+    base_url: https://www.nutritienda.com
+    path_prefix: /es
+    country: ES
+    currency: EUR
+    language: es
+    platform: inconnue
+    collector: page
+    status: blocked
+    filters:
+      sitemaps: [/es/sitemap/products.xml]
+    notes: >-
+      13/11/2026 : robots.txt 200 (n'interdit pas notre robot ; sitemap /es/sitemap/products.xml déclaré), mais
+      /es, products.json et le sitemap produits renvoient 403 (Cloudflare « Just a moment… »). On ne contourne
+      pas. Voie : programme d'affiliation ou demande d'accès.
+
+  - id: prozis-es
+    name: Prozis
+    base_url: https://www.prozis.com
+    path_prefix: /es/es
+    country: ES
+    currency: EUR
+    language: es
+    platform: custom
+    collector: page
+    status: blocked
+    filters:
+      sitemaps: [https://www.prozis.com/es/es/sitemap_products.gz]
+      product_pattern: '/es/es/'
+      prefilter_url: true
+      hook: prozis
+    notes: >-
+      13/11/2026 : robots.txt lui-même renvoie 429 à notre robot (comme en France le 11/11). On ne contourne pas.
+      Voie : programme d'affiliation Prozis. Structure reprise de l'entrée prozis (FR), sitemap non vérifié.
+
+  - id: xxlnutrition-es
+    name: XXL Nutrition
+    base_url: https://xxlnutrition.com
+    country: ES
+    currency: EUR
+    language: en
+    platform: inconnue
+    collector: page
+    status: blocked
+    notes: >-
+      13/11/2026 : robots.txt renvoie 403 (Cloudflare « Just a moment… »). On ne contourne pas. Version espagnole
+      non vérifiable (le CSV indique /en). Voie : affiliation ou demande d'accès.
+
+  - id: gymbeam-es
+    name: GymBeam
+    base_url: https://gymbeam.es
+    country: ES
+    currency: EUR
+    language: es
+    platform: inconnue
+    collector: page
+    status: blocked
+    notes: >-
+      13/11/2026 : gymbeam.es existe mais robots.txt renvoie 403 (Cloudflare « Just a moment… »). On ne
+      contourne pas. Le CSV le donnait « non listé / ne livre pas » : livraison en Espagne non vérifiable.
+
+  - id: nutripure-es
+    name: Nutripure
+    base_url: https://www.nutripure.fr
+    country: ES
+    currency: EUR
+    language: fr
+    platform: prestashop
+    collector: prestashop
+    status: blocked
+    notes: >-
+      13/11/2026 : robots.txt 200 (n'interdit pas notre robot) mais /es et products.json renvoient 403 (Cloudflare),
+      comme l'entrée française depuis peu. Version espagnole et livraison en Espagne non vérifiables.
+      On ne contourne pas.
