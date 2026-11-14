@@ -467,6 +467,7 @@ sites:
     collector: magento
     status: active
     filters:
+      sitemap_child_filter: 'sitemap'      # sous-sitemaps sans « product » dans le nom
       sitemaps: [/sitemap.xml]
       product_pattern: '^https://www\.naturitas\.es/p/(?:suplementos|alimentacion/alimentacion-deportiva)/'
       prefilter_url: true
@@ -500,6 +501,7 @@ sites:
     status: active
     filters:
       sitemaps: [/es/sitemap/products.xml]
+      sitemap_child_filter: '.'            # l'index produits liste des sous-sitemaps sans « product » dans le nom
       product_pattern: '^https://www\.nutritienda\.com/es/'
       prefilter_url: true
     notes: >-
