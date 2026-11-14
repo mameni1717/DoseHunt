@@ -1,0 +1,19 @@
+# Sonde des sites bloqués depuis GitHub Actions (même robot déclaré, même réseau que la collecte).
+# Lancement manuel uniquement ; n'écrit rien en base.
+name: Sonde des sites bloqués
+on:
+  workflow_dispatch:
+    inputs:
+      sites:
+        description: "Identifiants séparés par des espaces (vide = tous les sites blocked/decide)"
+        required: false
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -e .
+      - run: python scripts/probe_sites.py ${{ github.event.inputs.sites }}
