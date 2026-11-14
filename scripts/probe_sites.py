@@ -64,6 +64,10 @@ def discover(site) -> None:
     except Exception as e:                               # noqa: BLE001
         print(f"{site.id:18} découverte impossible : {e}", flush=True)
         return
+    from collections import Counter
+    from urllib.parse import urlsplit
+    tops = Counter("/".join(urlsplit(u).path.split("/")[:5]) for u in urls).most_common(40)
+    print(f"{site.id:18} rubriques : {tops}", flush=True)
     print(f"{site.id:18} {len(urls)} fiches retenues en {time.time() - t:.0f} s ; exemples : {urls[:3]}", flush=True)
 
 

@@ -599,8 +599,17 @@ class PageCollector(Collector):
         try:
             return ET.fromstring(content)
         except ET.ParseError:
-            log.warning("%s : sitemap illisible %s", self.site.id, url)
-            return None
+            # XML mal formé (caractère non échappé…) : on garde les <loc>, seule information utile du sitemap.
+            text = content.decode("utf-8", "replace")
+            locs = re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", text)
+            if not locs:
+                log.warning("%s : sitemap illisible %s", self.site.id, url)
+                return None
+            tag = "sitemapindex" if "<sitemapindex" in text else "urlset"
+            root = ET.Element(f"{_NS}{tag}")
+            for loc in locs:
+                ET.SubElement(ET.SubElement(root, f"{_NS}{'sitemap' if tag == 'sitemapindex' else 'url'}"), f"{_NS}loc").text = htmllib.unescape(loc)
+            return root
 
     def sitemap_urls(self) -> list[str]:
         sitemaps = self.cfg.get("sitemaps") or (["/sitemap.xml"] if not self.cfg.get("start_urls") else [])
