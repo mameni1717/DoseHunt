@@ -44,6 +44,9 @@ def probe(site) -> None:
             locs = re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", body or "")
         pat = (site.filters or {}).get("product_pattern")
         fiche = next((u for u in locs if (re.search(pat, u) if pat else re.search(r"\.html$|/products?/|/p/", u))), None)
+        if not fiche and locs:
+            out["exemples"] = " ".join(locs[:3])
+            fiche = locs[len(locs) // 2]
         if fiche:
             out["fiche"], html = code(c, fiche)
             out["json-ld"] = "oui" if html and "application/ld+json" in html else "non"
