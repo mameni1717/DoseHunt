@@ -11,7 +11,8 @@ Réglé site par site dans sites.yaml (rubrique `filters`) :
     prefilter_url          n'ouvrir que les fiches dont l'URL évoque nos 8 catégories
   Lecture
     variants_from          jsonld (défaut) | html_list (liste des tailles en HTML, Optigura)
-    sku_format             regex à groupes `flavour` et `size` pour lire le format dans la référence (Bulk)
+    sku_format             regex à groupes `flavour` et `size` (et `box`, facultatif : nombre de barres d'une boîte)
+                           pour lire le format dans la référence (Bulk)
     hook                   traitement propre à un site (prozis : tableau nutritionnel par API)
 
 Sources de prix, de la plus fiable à la moins fiable : configuration Magento (jsonConfig),
@@ -117,6 +118,9 @@ def variants_from_jsonld(node: dict, nodes: list[dict], url: str, sku_format: Op
                 gd = m.groupdict()
                 if gd.get("size"):
                     parts.append(str(int(gd["size"])) if gd["size"].isdigit() else gd["size"])
+                    opts["Format"] = parts[-1]
+                elif gd.get("box"):                      # groupe facultatif `box` : « HERO-PBAR-CCAR-BX12 » = boîte de 12 barres
+                    parts.append(f"Pack de {int(gd['box'])}")
                     opts["Format"] = parts[-1]
                 if gd.get("flavour"):
                     opts["Saveur"] = gd["flavour"]

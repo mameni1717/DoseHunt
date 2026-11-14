@@ -30,7 +30,8 @@ WORD_NUM = {"un": 1, "une": 1, "deux": 2, "trois": 3, "quatre": 4, "1/2": 0.5, "
 UNIT_NOUN_ES = (r"c[áa]psulas?(?: blandas)?|comprimidos?|perlas?|gotas?|tabletas?|gominolas?|sobres?|dosis|"
                 r"porci[óo]n(?:es)?|raci[óo]n(?:es)?|barritas?|cacitos?|tomas?\b|servicios?")
 SALTS_ES = (r"gluconato|citrato|bisglicinato|glicinato|picolinato|[óo]xido|sulfato|malato|carbonato|cloruro|lactato|"
-            r"taurato|pidolato|ascorbato|orotato|aspartato|treonato|quelato|acetato")
+            r"taurato|pidolato|ascorbato|orotato|aspartato|treonato|quelato|acetato|"
+            r"monometionina|mono-?l-?metionina|metionina")     # « 30 mg de zinc monometionina » : poids du sel (Vitobest ZMAG)
 _V = {
     "fr": {
         "unit": UNIT_NOUN, "salts": SALTS, "dw": r"doses?|portions?",
@@ -95,6 +96,9 @@ def daily_dose(text: str, lang: str = "fr") -> DoseInfo:
             r"dosis (?:diaria|recomendada)\s*[:\-(]?\s*(" + V["num"] + r")\s*(?:" + V["unit"] + ")",
             r"(" + V["num"] + r")\s*(?:" + V["unit"] + r")\s*(?:al|por|/|cada)\s*d[íi]a",
             r"tomar\s*(" + V["num"] + r")\s*(?:" + V["unit"] + ")",
+            # « Tamaño de la Ración - 3 Pastillas » (« pastillas » seulement ici : « Consumir 3 pastillas al día » ne dit pas
+            # si la teneur du titre est par pastille ou par jour)
+            r"tama[ñn]o de la raci[óo]n\s*[:\-–]?\s*(" + V["num"] + r")\s*(?:" + V["unit"] + r"|pastillas?)",
         ]
     for p in pats:
         m = re.search(p, t)
@@ -199,9 +203,10 @@ def table_serving_to_100g(text: str, row_rx: str, lang: str = "fr") -> Optional[
         cells = [c.strip() for c in line.split("|")]
         head = re.search(r"(?:portion|dose|shaker|mesure)[^|]*?\(\s*" + N + r"\s*g\s*\)", line, re.I) \
             or re.search(r"(?:^|\|)[^|]{0,25}?\b(?:pour|par)\s+" + N + r"\s*g\b(?!\s*de)", line, re.I)
-        if head is None and lang == "es":            # « Por ración (30 g) », « Por 30 g », « Cada cacito (30 g) »
+        if head is None and lang == "es":            # « Por ración (30 g) », « Por 30 g », « Cada cacito (30 g) », « Por ración diaria | 3,4g »
             head = re.search(r"(?:porci[óo]n|raci[óo]n|dosis|toma|cacito|servicio|scoop)[^|]*?\(\s*" + N + r"\s*g\s*\)", line, re.I) \
-                or re.search(r"(?:^|\|)[^|]{0,25}?\b(?:por|cada)\s+" + N + r"\s*g\b(?!\s*de)", line, re.I)
+                or re.search(r"(?:^|\|)[^|]{0,25}?\b(?:por|cada)\s+" + N + r"\s*g\b(?!\s*de)", line, re.I) \
+                or re.search(r"^\s*(?:por|cada)\s+(?:una?\s+)?(?:porci[óo]n|raci[óo]n|dosis)(?:\s+diaria)?\s*\|\s*" + N + r"\s*g\s*$", line, re.I)
         if head and _f(head.group(1)) == 100:
             head = None
         if head:
@@ -427,6 +432,10 @@ def _vitamin_d(text: str, lang: str = "fr") -> Optional[ActiveContent]:
         ui, start, end = _f(m.group(1)), m.start(), m.end()
     else:
         m = re.search(N + r"\s*(?:µg|μg|mcg|ug)\s*(?:de\s+)?(?:" + ("vitamine" if lang == "fr" else "vitamine|vitamina") + r"\s*)?d3?", text, re.I)
+        if m is None and lang == "es":
+            # « Vitamina D3: 50µg por cápsula (1000% VRN) », « Vitamina D3 (colecalciferol) | 25 µg »
+            m = re.search(r"vitamina\s*d3?\b(?:\s*\([^)\n]{0,30}\))?\s*[:|\-]?\s*(?:\|\s*)?" + N + r"\s*(?:µg|μg|mcg|ug)", text, re.I) \
+                or re.search(r"vitamina\s*d3?\s*\+\s*k2(?:\s+[a-z]+)?\s*\(\s*" + N + r"\s*(?:µg|μg|mcg|ug)\s*/", text, re.I)   # titre « Vitamina D3 + K2 (100μg/150μg) » : D3 d'abord
         if m:
             ui, start, end = _f(m.group(1)) * 40, m.start(), m.end()
     if ui is None:
@@ -448,11 +457,18 @@ def _omega3(text: str, lang: str = "fr") -> Optional[ActiveContent]:
     acid = r"acide" if lang == "fr" else r"acide|[áa]cido"
     sum_and = r"\+|et" if lang == "fr" else r"\+|et|y"
 
+    def claim(m) -> bool:
+        # « El efecto beneficioso se obtiene con una ingesta (diaria) de 250 mg de EPA y DHA » : l'allégation, pas la teneur
+        return lang != "fr" and bool(re.search(r"ingesta\s+(?:diaria\s+)?de\s*$", text[max(0, m.start() - 30):m.start()], re.I))
+
+    def first(rx):
+        return next((m for m in re.finditer(rx, text, re.I) if not claim(m)), None)
+
     def grab(name):
-        m = re.search(N + r"\s*mg\s*(?:d['’]\s*|de\s*)?(?:(?:" + acid + r")\s+\w+\s+)?\(?" + name + r"\b", text, re.I) \
+        m = first(N + r"\s*mg\s*(?:d['’]\s*|de\s*)?(?:(?:" + acid + r")\s+\w+\s+)?\(?" + name + r"\b") \
             or re.search(r"\b" + name + r"\b[^|\n\d]{0,40}[:|\-]?\s*(?:\|\s*)?" + N + r"\s*mg", text, re.I)
         return (m, _f(m.group(1))) if m else (None, None)
-    m_sum = re.search(N + r"\s*mg\s*(?:d['’]\s*|de\s*)?(?:epa\s*(?:" + sum_and + r")\s*dha|om[ée]ga[- ]?3)", text, re.I) if lang != "fr" \
+    m_sum = first(N + r"\s*mg\s*(?:d['’]\s*|de\s*)?(?:epa\s*(?:" + sum_and + r")\s*dha|om[ée]ga[- ]?3)") if lang != "fr" \
         else re.search(N + r"\s*mg\s*(?:d['’]\s*)?(?:epa\s*(?:\+|et)\s*dha|om[ée]ga[- ]?3)", text, re.I)
     me, epa = grab("EPA")
     md, dha = grab("DHA")
@@ -482,8 +498,30 @@ def _powder_or_caps(text: str, category: str, active: str, noun_rx: str, title: 
                     lang: str = "fr") -> Optional[ActiveContent]:
     """Créatine, collagène : poudre (g pour 100 g) ou gélules (mg par unité)."""
     pep = r"peptides de" if lang == "fr" else r"peptides de|p[ée]ptidos de"
-    if fmt.units and fmt.grams is None:          # gélules
+    sachets = lang == "es" and (fmt.unit_grams or 0) >= 2.5      # « Sobres monodosis 20 x 6.8g » : de la poudre en sachets, pas des gélules
+    if fmt.units and fmt.grams is None and not sachets:          # gélules
         m = re.search(BIG + r"\s*mg\s*(?:de\s+)?(?:(?:" + pep + r")\s+)?(?:" + noun_rx + ")", text, re.I)
+        grams_unit = 1
+        if lang == "es":
+            # tableau d'abord : « 4 cápsulas | %VRN / Hidrolizado de colágeno (de vacuno) | 2000 mg » (Sunday Natural)
+            mt = re.search(r"^\s*(?:" + noun_rx + r")(?:\s*\([^)\n]{0,30}\))?\s*\|\s*" + BIG + r"\s*mg\b", text, re.I | re.M)
+            if mt:
+                head = re.search(r"^\s*(?:por\s+)?(" + _v(lang)["num2"] + r")\s*(?:" + _v(lang)["unit"] + r")[^|\n]*\|[^\n]*$",
+                                 text[max(0, mt.start() - 300):mt.start()], re.I | re.M)
+                upd_t = _count(head.group(1)) if head and not re.match(_v(lang)["dw"], head.group(0).strip().split()[-1]) else None
+                upd_t = upd_t or daily_dose(text, lang).units_per_dose
+                if upd_t:
+                    return ActiveContent(category, active, round(_f(mt.group(1)) / upd_t, 1), "mg", "per_unit", "regex_table", 0.9,
+                                         (head.group(0).strip() + " / " if head else "") + mt.group(0).strip(), units_per_dose=upd_t)
+        if not m and lang == "es":
+            # « 3,0 g de monohidrato de creatina por cada 3 comprimidos », « Tiene 2,5 gr de monohidrato de creatina »,
+            # tableau « Monohidrato de Creatina | | | 3 g » ; jamais l'allégation « una ingesta diaria de 3 g de creatina »
+            rx_g = (N + r"[ \t]*(?:g|gr|gramos)[ \t]+(?:de\s+)?(?:(?:" + pep + r")\s+)?(?:" + noun_rx + r")"
+                    r"|(?:" + noun_rx + r")\s*(?:\|\s*)+" + N + r"\s*(?:g|gr|gramos)\b")
+            m = next((x for x in re.finditer(rx_g, text, re.I)
+                      if not re.search(r"ingesta\s+(?:diaria\s+)?de\s*$", text[max(0, x.start() - 30):x.start()], re.I)
+                      and _f(x.group(1) or x.group(2)) <= 20), None)
+            grams_unit = 1000
         if m:
             upd, _ = _dose_after(text, m.end(), lang=lang)
             if upd is None:
@@ -493,7 +531,7 @@ def _powder_or_caps(text: str, category: str, active: str, noun_rx: str, title: 
                 dd = daily_dose(text, lang)
                 upd = dd.units_per_dose or 1
                 conf = 0.9 if dd.units_per_dose else 0.6
-            amount = round(_f(m.group(1)) / upd, 1)
+            amount = round(_f(m.group(1) or m.group(2)) * grams_unit / upd, 1)
             cap = 2000                                   # au-delà, impossible dans une seule gélule
             tm = re.search(r"(\d{3,4})\s*mg", title, re.I)
             if amount > cap and tm and 300 <= int(tm.group(1)) <= cap:
@@ -526,7 +564,7 @@ def _powder_or_caps(text: str, category: str, active: str, noun_rx: str, title: 
                              note="calculé : quantité par portion ÷ poids de la portion")
     pure_rx, mix_rx = r"monohydrat|creapure|micronis|100\s*%|pure", r"complexe|\+|matrix|blend|pre|ph-x|malate|hcl|plus"
     if lang == "es":
-        pure_rx, mix_rx = pure_rx + r"|monohidrato|micronizada|pura", mix_rx + r"|complejo|con\b"
+        pure_rx, mix_rx = pure_rx + r"|monohidrat|micronizada|pura", mix_rx + r"|complejo|con\b"
     if category == "creatine" and re.search(pure_rx, title, re.I) and not re.search(mix_rx, title, re.I):
         return ActiveContent(category, active, 100, "g", "per_100g", "assumed", 0.7, title,
                              note="créatine monohydrate pure supposée (100 %), sans autre ingrédient déclaré dans le titre")
@@ -536,14 +574,24 @@ def _powder_or_caps(text: str, category: str, active: str, noun_rx: str, title: 
 _THOUSANDS = re.compile(r"(?<=\d)[ \u00a0\u202f](?=\d{3}(?!\d)\s*(?:mg|g|µg|μg|mcg|ui|iu|kcal|kj)\b)", re.I)
 
 
+_G_ES = r"\s*(?:g|gr|gramos)\b"        # « 33 gr », « 30 gramos »
 _SERVING_ES = [
-    # « Tamaño de la ración 20g », « 1 cacito (30 g) », « por porción (30 g) », « Ración: 30 g »
-    re.compile(r"(?:una|1)?\s*(?:porci[óo]n|raci[óo]n|dosis|toma|cacito|scoop|servicio)(?:es|s)?\s*(?:diaria|recomendada)?\s*[:=(]\s*" + N + r"\s*g\b", re.I),
-    re.compile(r"tama[ñn]o (?:de la |de )?(?:porci[óo]n|raci[óo]n|dosis|toma)\s*[:=(]?\s*" + N + r"\s*g\b", re.I),
-    re.compile(r"(?:una |1 )(?:dosis|porci[óo]n|raci[óo]n|toma)[^\n]{0,40}?\(\s*" + N + r"\s*g\s*\)", re.I),
-    # « dosis de 30 g », « cada toma de 10 g », « por ración de 30 g », « en cada servicio de 30 g »
+    # « Tamaño de la ración 20g », « 1 cacito (30 g) », « por porción (30 g) », « Ración: 30 g », « por dosis (30 gr, sabor chocolate) »
+    re.compile(r"(?:una|1)?\s*(?:porci[óo]n|raci[óo]n|dosis|toma|cacito|scoop|servicio)(?:es|s)?\s*(?:diaria|recomendada)?\s*[:=(]\s*" + N + _G_ES, re.I),
+    re.compile(r"tama[ñn]o (?:de la |de |por )?(?:porci[óo]n|raci[óo]n|dosis|toma)\s*[:=(\-–]?\s*" + N + _G_ES, re.I),   # « Tamaño de la ración - 5g »
+    re.compile(r"(?:una |1 )(?:dosis|porci[óo]n|raci[óo]n|toma)[^\n]{0,40}?\(\s*" + N + _G_ES, re.I),
+    # « dosis de 30 g », « cada toma de 10 g », « por ración de 30 g », « en cada servicio de 30 g »,
+    # « Cada dosis recomendada de 3,6 g », « La dosis recomendada es de 30 g (1 cazo) »
     re.compile(r"(?:\b(?:cada|una|1|por|en)\s+)?\b(?:dosis|porci[óo]n|raci[óo]n|toma|cacito|cuchara(?:da)?|servicio|scoop)\s+"
-               r"(?:de|de aproximadamente|de unos)\s+" + N + r"\s*g\b", re.I),
+               r"(?:(?:diaria|recomendada|indicada)\s+)?(?:es\s+)?(?:de|de aproximadamente|de unos)\s+" + N + _G_ES, re.I),
+    # « Mezclar 1 scoop de proteína (35 g) », « Mezclar 1 cucharada (30 gr) », « Tomar 1 cazo (50 gr aprox.) »
+    # « Mezclar 1 medidas (aproximadamente 3,4 g) » (Bulk)
+    re.compile(r"\b(?:\d+(?:[.,]\d+)?|un|una)\s+(?:scoops?|cazos?|cacitos?|cucharadas?|cucharas? de medici[óo]n|medid(?:or|a)s?|dosificador(?:es)?|cuchara medidora)\b"
+               r"[^()\n]{0,25}\(\s*(?:aproximadamente|aprox\.?|unos|approx\.?)?\s*" + N + _G_ES, re.I),
+    # « Cantidad recomendada: 25 g mezclados en 250 ml de agua »
+    re.compile(r"\bcantidad\s+(?:diaria\s+)?recomendada\s*[:=]\s*" + N + _G_ES, re.I),
+    # « Mezclar 35 g (1 cazo) con 200-250 ml de agua », « Diluir 30 gr en 250 ml », « Disolver 25 g de producto »
+    re.compile(r"\b(?:mezcla(?:r)?|diluir|disolver|disuelve|a[ñn]adir|a[ñn]ade)\s+" + N + _G_ES, re.I),
 ]
 
 
@@ -568,13 +616,23 @@ def _per_serving_text(text: str, noun_rx: str, lang: str = "fr") -> Optional[tup
     size = serving_size(text, lang)
     if not size:
         return None
-    for m in re.finditer(r"(?<![\d.,])" + N + r"\s*(m?g)\s*(?:de\s+|d['’]\s*)?(?:" + noun_rx + r")\b|(?:" + noun_rx + r")\s*:?\s*" + N + r"\s*(m?g)\b",
+    unit_rx = r"m?g" if lang == "fr" else r"mg|g(?:r|ramos)?"     # espagnol : « 27 gr de proteínas », « 23 gramos de proteína »
+    first = None
+    sep = r"\s*:?\s*" if lang == "fr" else r"\s*(?:[:|]\s*)*"           # espagnol : « L-glutamina | | 5,0g »
+    for m in re.finditer(r"(?<![\d.,])" + N + r"\s*(" + unit_rx + r")\s*(?:de\s+|d['’]\s*)?(?:" + noun_rx + r")\b|(?:" + noun_rx + r")" + sep + N + r"\s*(" + unit_rx + r")\b",
                          text, re.I):
         val, unit = (m.group(1), m.group(2)) if m.group(1) else (m.group(3), m.group(4))
         grams = _f(val) / (1000 if unit.lower() == "mg" else 1)
+        if lang != "fr" and re.search(r"ingesta\s+(?:diaria\s+)?de\s*$", text[max(0, m.start() - 30):m.start()], re.I):
+            continue                 # « Una ingesta diaria de 3 g de creatina mejora el rendimiento » : allégation, pas la teneur
         if 0 < grams <= size:
-            return round(grams / size * 100, 1), f"{m.group(0)} {'por dosis de' if lang == 'es' else 'pour une portion de'} {size:g} g"
-    return None
+            found = round(grams / size * 100, 1), f"{m.group(0)} {'por dosis de' if lang == 'es' else 'pour une portion de'} {size:g} g"
+            if lang == "fr" or re.search(r"monohidrat|monohydrat", m.group(0), re.I):
+                return found
+            # « 3 g de creatina » puis « 3,4 g de monohidrato de creatina, equivalentes a 3 g de creatina » : comme partout,
+            # la teneur de créatine se compte en monohydrate (la poudre de monohydrate pur vaut 100 %)
+            first = first or found
+    return first
 
 
 _SERVING_HEAD = re.compile(r"(?:pour|par)\s+(?:une?\s+|1\s+)?(?:portion|dose|scoop|mesure|service|serving)?\s*\(?\s*" + N + r"\s*g\b(?!\s*de)", re.I)
@@ -648,7 +706,7 @@ def extract(category: str, body_html: str, title: str, fmt: Format, lang: str = 
         return _per_unit_element(full, "vitamine_c", r"vitamine c|vit\.? ?c|acide l?-?ascorbique"
                                  + (r"|vitamina c|[áa]cido l?-?asc[óo]rbico" if es else ""), "vitamin_c", lang=lang)
     if category == "glutamine":
-        return _powder_or_caps(text, "glutamine", "glutamine", r"l-?glutamine|glutamine" + (r"|l-?glutamina" if es else ""),
+        return _powder_or_caps(text, "glutamine", "glutamine", r"l-?glutamine|glutamine" + (r"|(?:l[- ]?)?glutamina" if es else ""),
                                title, fmt, lang)
     if category == "barres":
         weight0 = fmt.unit_grams or bar_weight(text, lang)
@@ -701,8 +759,9 @@ def extract(category: str, body_html: str, title: str, fmt: Format, lang: str = 
             pure = (ingr and re.match(r"\s*(?:\d+\s*%\s*)?(?:peptides?|hydrolysat|collag)", ingr.group(1), re.I)) \
                 or re.search(r"peptides? de collag|collagen peptides|hydrolysat de collag|peptan|naticol|verisol", title, re.I)
             if not pure and es:
-                ingr = re.search(r"ingredientes?\s*:?\s*([^\n]{0,80})", text, re.I)
-                pure = (ingr and re.match(r"\s*(?:\d+\s*%\s*)?(?:p[ée]ptidos?|hidrolizado|col[áa]geno)", ingr.group(1), re.I)) \
+                # toutes les mentions « Ingredientes » (la première peut être « sin pérdida de ingredientes, pleno disfrute »)
+                pure = any(re.match(r"\s*(?:\d+\s*%\s*)?(?:p[ée]ptidos?|hidrolizado|col[áa]geno)", g.group(1), re.I)
+                           for g in re.finditer(r"ingredientes?\s*:?\s*([^\n]{0,80})", text, re.I)) \
                     or re.search(r"p[ée]ptidos? de col[áa]geno|col[áa]geno hidrolizado", title, re.I)
             prot = _protein_per_100g(text, lang) if pure else None
             if prot and 60 <= prot.amount <= 100:
@@ -723,6 +782,13 @@ def content_from_text(body_html: str, lang: str = "fr") -> tuple[Optional[float]
         m = re.search(r"(?:peso neto|contenido neto|contenido|cantidad neta|(?:bote|bolsa|doypack|caja|frasco|cubo|tubo|"
                       r"envase)\s+(?:de|con))\s*[:\-|]?\s*" + N +
                       r"\s*(kg|g|gr|c[áa]psulas?|comprimidos?|tabletas?|perlas?)\b", text, re.I)
+    if not m and lang == "es":
+        # Sunday Natural : « 360 g de polvo », « 2500 UI + 100 µg x 300 gotas », « 1750 gotas »
+        m = re.search(r"(?<![\d.,])" + N + r"\s*(kg|g)\s+(?:de|en)\s+polvo\b", text, re.I)
+        if not m:
+            mg_ = re.search(r"\bx\s*(\d{2,4})\s*gotas\b|(?<![\d.,])(\d{2,4})\s*gotas\b(?!\s*(?:al|por|cada|diarias))", text, re.I)
+            if mg_ and 50 <= int(mg_.group(1) or mg_.group(2)) <= 5000:
+                return None, int(mg_.group(1) or mg_.group(2))
     if not m:
         return None, None
     value, unit = _f(m.group(1)), m.group(2).lower()

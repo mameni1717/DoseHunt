@@ -242,7 +242,7 @@ class SiteCache:
 
 
 # À incrémenter quand les règles de lecture des fiches changent : toutes les fiches sont relues une fois.
-RULES_VERSION = "2026-11-14-es"          # règles par langue (français inchangé, espagnol ajouté)
+RULES_VERSION = "2026-11-14-es2"        # espagnol : portions « Mezclar 35 g », tableaux sans en-tête de poids, intrus « booster », Bulk V2
 
 
 def _body_hash(p: RawProduct) -> str:
@@ -566,9 +566,21 @@ def process_product(conn: Connection, site: Site, p: RawProduct, codes: list[Cod
     for cl in found:
         basis = cats[cl.category]["basis"]
         powder = bool(re.search(r"\bpoudre\b|\bpowder\b" + (r"|\ben polvo\b|\bpolvo\b" if lang == "es" else ""), p.title, re.I))
+        if not powder and lang == "es" and cl.category in ("creatine", "collagene", "glutamine"):
+            # Bulk « Creatina Monohidratada », tailles « 100 / 250 / 500 / 1000 » : poudre dite dans la description
+            # (« Creatina Monohidratada 99,99 % pura en polvo »), pas dans le titre ; jamais si le titre parle de gélules
+            powder = (not re.search(r"c[áa]psula|comprimido|tableta|pastilla|\bcaps\b|\btabs\b|softgel|gominola|gumm|sobres?\b|stick|"
+                                    r"l[íi]quid|\bml\b|ampolla|viales?", p.title, re.I)
+                      and bool(re.search(r"\ben polvo\b|\bpolvo\b", (txt := extract.html_to_text(p.body_html or ""))[:3000], re.I)
+                               or re.search(r"\bmezcla(?:r)?\s[^.\n]{0,60}\bcon\s+\d+\s*ml\b", txt, re.I)))
         # Barres : un nombre nu est un poids (« 48 » = barre de 48 g) ; poudre : un nombre nu est un poids aussi.
         prefer_units = (basis == "per_unit" or cl.category in ("creatine", "collagene", "glutamine")) and cl.category != "barres" and not powder
         sample_fmt = variant_format(p, p.variants[0], prefer_units=prefer_units) if p.variants else Format()
+        if lang == "es" and cl.category != "barres" and sample_fmt.total_units is None and sample_fmt.total_grams is None \
+                and sample_fmt.months is None:
+            # Libellé muet (« Default Title », Sunday Natural) : « 120 cápsulas » ou « 300 g » lus dans la fiche avant la teneur,
+            # sinon une gélule (« 500 mg por cápsula ») serait lue comme une poudre
+            sample_fmt = _fill_units(sample_fmt, None, p, lang)
         ac = _resolve_active(conn, p, product_id, cl.category, cl.subcategory, cl.combined,
                              body_changed, sample_fmt, stats, use_llm, reextract, fetch_page, cache, lang)
         # 1. Format de chaque variante (aucune requête)

@@ -32,7 +32,7 @@ categories:
       classique: []            # par défaut
     es:
       include: ['prote[íi]nas? (?:de suero|vegetal(?:es)?|vegana?s?|de guisante|de arroz|de soja)', 'suero de leche', 'aislado de (?:prote[íi]na|suero)', 'prote[íi]nas? hidrolizadas? de suero', 'hidrolizado de (?:prote[íi]na de )?suero', 'case[íi]na', 'micelar']
-      exclude: ['ganador', '\bmass\b', 'sustitutiv', 'adelgaz', 'huevo', 'mantequilla', 'tortitas?', 'galletas?', 'harina', 'avena', 'barritas?', 'bebida', 'batido.*botella', 'botella', 'crema', '\bcream\b', 'amino', 'gominolas?', 'gummies', 'porridge', 'muestra']
+      exclude: ['ganador', '\bmass\b', 'sustitutiv', 'adelgaz', 'huevo', 'mantequilla', 'tortitas?', 'galletas?', 'harina', 'avena', 'barritas?', 'bebida', 'batido.*botella', 'botella', 'crema', '\bcream\b', 'amino', 'gominolas?', 'gummies', 'porridge', 'muestra', 'breakfast', 'desayuno', 'gummy']
       product_type_exclude: ['Ganadores de peso', 'Sustitutos de comidas', 'Harina', 'Cremas', 'Dulces']
       subcategories:
         caseine: ['case[íi]na', 'micelar']
@@ -69,7 +69,7 @@ categories:
     require_any: ['prot', 'barre', '\bbar']
     es:
       include: ['barritas?\b', 'barras? (?:de )?prote', 'barras? proteicas?']
-      exclude: ['barra ol[íi]mpica', 'dominadas', 'soporte', 'mancuernas?', 'jaula', 'energ[ée]tic', 'avena', 'carbohidrat', 'cereales?', 'flapjack', 'gominolas?']
+      exclude: ['barra ol[íi]mpica', 'dominadas', 'soporte', 'mancuernas?', 'jaula', 'energ[ée]tic', 'avena', 'carbohidrat', 'cereales?', 'flapjack', 'gominolas?', 'gumm(?:y|ies)', '\bbcaas?\b', '\beaas?\b']
       require_any: ['barrit', 'barra']
 
   creatine:
@@ -86,7 +86,8 @@ categories:
     exclude: ['gummies', 'gummy', 'sticks?\b', 'shaker', 'pre[- ]?workout']
     es:
       include: ['creatina']
-      exclude: ['gominolas?', 'pre[- ]?entreno', 'pre[- ]?entrenamiento']
+      # « Origin Protein (con Creatina) » : une protéine (5 g de créatine pour 48 g), classée en whey, pas en créatine
+      exclude: ['gominolas?', 'pre[- ]?entreno', 'pre[- ]?entrenamiento', '\bprote[íi]na\b', '\bprotein\b']
 
   zinc:
     label: Zinc
@@ -100,7 +101,9 @@ categories:
     include: ['\bzinc\b', '\bzma\b', 'zinco', 'optizinc']
     exclude: ['shampo', 'cr[eè]me', 'pommade', 'roues?', 'jantes?', 'v[ée]lo', 'peinture', 'argent zinc']
     es:
-      exclude: ['champ[úu]', 'crema', 'pomada', 'pintura']
+      # mélanges « testostérone » ou « sommeil » (Tribulus + Zinc, Triptófano con Melatonina…) : pas un zinc ;
+      # « ZMA » seul reste classé zinc et magnésium, comme en France
+      exclude: ['champ[úu]', 'crema', 'pomada', 'pintura', 'tribulus', '\btesto', 'termog[ée]nic', 'thermo', 'quemador', 'burner', 'melatonin', 'tript[óo]fano', 'sue[ñn]o', '\bsleep', '\bdream']
 
   magnesium:
     label: Magnésium
@@ -114,7 +117,7 @@ categories:
     include: ['magn[ée]sium', '\bzma\b', 'magnesio']
     exclude: ['huile de magn', 'spray', 'sels? de bain', 'gel\b']
     es:
-      exclude: ['aceite de magnesio', 'sales de baño', 'crema']
+      exclude: ['aceite de magnesio', 'sales de baño', 'crema', 'tribulus', '\btesto', 'termog[ée]nic', 'thermo', 'quemador', 'burner', 'melatonin', 'tript[óo]fano', 'sue[ñn]o', '\bsleep', '\bdream']
 
   vitamine_d:
     label: Vitamine D
@@ -178,7 +181,7 @@ categories:
     exclude: ['barre', '\bbar\b', 'gainer', 'bcaa', 'complex', 'recovery', 'shaker']
     es:
       include: ['glutamina']
-      exclude: ['barritas?', 'ganador', 'recuperaci[óo]n']
+      exclude: ['barritas?', 'ganador', 'recuperaci[óo]n', '\beaas?\b', 'amino[áa]cidos']
 
   preworkout:
     label: Pré-workout
@@ -193,7 +196,12 @@ categories:
     es:
       # « sin cafeína » n'est PAS exclu ; « booster » attrape des « colágeno booster » : exclusion colágeno nécessaire.
       include: ['pre[- ]?entreno', 'pre[- ]?entrenamiento']
-      exclude: ['guantes', 'cintur[óo]n', 'barritas?', 'toalla', 'camiseta', 'comprimidos?', 'c[áa]psulas?', 'tabletas?', 'chupitos?', 'bebidas?', 'remolacha', '^\s*(?:l-)?(?:citrulina|arginina|aakg|beta[- ]?alanina|cafe[íi]na|taurina|tirosina|nitratos?|ornitina)\b', 'malato de citrulina', 'citrulina malato', 'amino[áa]cidos?', 'avena', 'copos', 'siropes?', 'salsas?', 'crema untable', 'para untar', 'calor[íi]', 'prote[íi]na', 'col[áa]geno', 'glutamina', 'vitaminas?\b', 'multivitam', 'electrolitos?', 'verdes', 'gominolas?']
+      exclude: ['guantes', 'cintur[óo]n', 'barritas?', 'toalla', 'camiseta', 'comprimidos?', 'c[áa]psulas?', 'tabletas?', 'chupitos?', 'bebidas?', 'remolacha', '^\s*(?:l-)?(?:citrulina|arginina|aakg|beta[- ]?alanina|cafe[íi]na|taurina|tirosina|nitratos?|ornitina)\b', 'malato de citrulina', 'citrulina malato', 'amino[áa]cidos?', 'avena', 'copos', 'siropes?', 'salsas?', 'crema untable', 'para untar', 'calor[íi]', 'prote[íi]na', 'col[áa]geno', 'glutamina', 'vitaminas?\b', 'multivitam', 'electrolitos?', 'verdes', 'gominolas?',
+                'gumm(?:y|ies)', 'tribulus', 'tribo', '\btesto', 'thyro', 'tiro(?:ides|ideo)', 'termog[ée]nic', 'thermo', 'quemador', 'burner',
+                '\bfat\b', 'melatonin', 'tript[óo]fano', 'sue[ñn]o', '\bsleep', '\bdream', '\bdhea\b', 'maca\b']
+      # « booster » seul ne suffit pas (TestoXT Booster, Thyro Booster…) : il faut un mot pré-entreno, ou un actif typique
+      # dans la description (classify.looks_preworkout)
+      booster_needs_active: true
 
 # Produits combinés : quand un produit matche plusieurs catégories, il apparaît dans chacune,
 # avec le badge « produit combiné » et le prix entier attribué à l'actif de la liste.
