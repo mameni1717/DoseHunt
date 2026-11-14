@@ -324,3 +324,128 @@ zumub:
   whey:
   - https://www.zumub.com/FR/proteine-de-caseine
   - https://www.zumub.com/FR/proteines/proteines-vegetales
+
+# ---------- Espagne : détectés le 14/11/2026 (menus des accueils), relus à la main : retirés « meilleures ventes »,
+# pages d'information, mélanges BCAA/oméga 3-6-9, gamme Origin (protéine + créatine), comparateur Bulk.
+bulk-es:
+  barres:
+  - https://www.bulk.com/es/proteinas/barritas-proteicas
+  - https://www.bulk.com/es/vegan/barritas-de-proteinas-veganas
+  collagene:
+  - https://www.bulk.com/es/proteinas/colageno
+  creatine:
+  - https://www.bulk.com/es/nutricion-deportiva/creatina
+  glutamine:
+  - https://www.bulk.com/es/nutricion-deportiva/aminoacidos/glutamina
+  magnesium:
+  - https://www.bulk.com/es/vitamins/minerales/magnesio
+  omega3:
+  - https://www.bulk.com/es/salud-y-bienestar/aceites-de-pescado
+  - https://www.bulk.com/es/salud-y-bienestar/omega-3
+  preworkout:
+  - https://www.bulk.com/es/nutricion-deportiva/pre-entrenamiento
+  vitamine_c:
+  - https://www.bulk.com/es/vitamins/vitamina-c
+  vitamine_d:
+  - https://www.bulk.com/es/vitamins/vitamina-d
+  whey:
+  - https://www.bulk.com/es/proteinas/proteina-de-suero
+  - https://www.bulk.com/es/proteinas/proteina-para-veganos
+  - https://www.bulk.com/es/vegan/proteina-vegana-en-polvo
+masmusculo-es:
+  barres:
+  - https://www.masmusculo.com/collections/barritas-de-proteinas
+  collagene:
+  - https://www.masmusculo.com/collections/colageno
+  creatine:
+  - https://www.masmusculo.com/collections/creatina
+  - https://www.masmusculo.com/collections/creatina-monohidrato
+  - https://www.masmusculo.com/collections/otras-creatinas
+  glutamine:
+  - https://www.masmusculo.com/collections/glutamina
+  magnesium:
+  - https://www.masmusculo.com/collections/magnesio
+  omega3:
+  - https://www.masmusculo.com/collections/aceite-de-pescado
+  - https://www.masmusculo.com/collections/omega-3
+  preworkout:
+  - https://www.masmusculo.com/collections/pre-entrenamiento
+  vitamine_c:
+  - https://www.masmusculo.com/collections/vitamina-c
+  vitamine_d:
+  - https://www.masmusculo.com/collections/vitamina-d
+  whey:
+  - https://www.masmusculo.com/collections/proteinas-de-suero-whey
+  - https://www.masmusculo.com/collections/aislado-de-suero
+  - https://www.masmusculo.com/collections/caseina
+  - https://www.masmusculo.com/collections/proteina-vegetal
+myprotein-es:
+  barres:
+  - https://www.myprotein.es/c/nutrition/healthy-food-drinks/protein-bars
+  collagene:
+  - https://www.myprotein.es/c/nutrition/collagen
+  creatine:
+  - https://www.myprotein.es/c/nutrition/creatine
+  - https://www.myprotein.es/c/all-offers/creatine-tabs
+  glutamine:
+  - https://www.myprotein.es/c/nutrition/amino-acids/glutamine
+  magnesium:
+  - https://www.myprotein.es/c/nutrition/vitamins-minerals/magnesium-supplements
+  omega3:
+  - https://www.myprotein.es/c/ranges/myvitamins/omega-3
+  preworkout:
+  - https://www.myprotein.es/c/nutrition/pre-post-workout/pre-workout
+  vitamine_c:
+  - https://www.myprotein.es/c/nutrition/vitamins-minerals/essentials/vitamin-c
+  vitamine_d:
+  - https://www.myprotein.es/c/ranges/myvitamins/essentials/d3-k2
+  whey:
+  - https://www.myprotein.es/c/nutrition/protein/whey-protein
+  - https://www.myprotein.es/c/nutrition/protein/milk-protein
+  - https://www.myprotein.es/c/nutrition/protein/vegan-protein
+  zinc:
+  - https://www.myprotein.es/c/nutrition/vitamins-minerals/zinc-supplements
+sundaynatural-es:
+  collagene:
+  - https://www.sunday-natural.es/tejido-conjuntivo-colageno
+  - https://www.sunday-natural.es/aminoacidos-colageno
+  magnesium:
+  - https://www.sunday-natural.es/magnesio
+  omega3:
+  - https://www.sunday-natural.es/omega
+  vitamine_c:
+  - https://www.sunday-natural.es/vitamina-c
+  vitamine_d:
+  - https://www.sunday-natural.es/vitamina-d
+  whey:
+  - https://www.sunday-natural.es/proteina-vegana-en-polvo
+  - https://www.sunday-natural.es/proteina-de-suero-de-leche
+  - https://www.sunday-natural.es/proteina-en-polvo
+  - https://www.sunday-natural.es/proteinas-deportes
+  zinc:
+  - https://www.sunday-natural.es/zinc
+zumub-es:
+  barres:
+  - https://www.zumub.com/ES/barras-bebidas-y-geles
+  collagene:
+  - https://www.zumub.com/ES/-c-411
+  creatine:
+  - https://www.zumub.com/ES/creatina
+  - https://www.zumub.com/ES/creatina-creatina-monohidrato-c-213_165_74
+  glutamine:
+  - https://www.zumub.com/ES/aminoacidos-bcaas/glutamina
+  magnesium:
+  - https://www.zumub.com/ES/vitaminas-y-minerales-magnesio-c-90_172_178
+  omega3:
+  - https://www.zumub.com/ES/salud-y-bienestar/omega-3
+  preworkout:
+  - https://www.zumub.com/ES/pre-entrenamiento
+  vitamine_c:
+  - https://www.zumub.com/ES/vitamina-c
+  vitamine_d:
+  - https://www.zumub.com/ES/vitamina-d
+  whey:
+  - https://www.zumub.com/ES/aislados-de-suero
+  - https://www.zumub.com/ES/proteinas/suero
+  - https://www.zumub.com/ES/proteinas/caseina
+  - https://www.zumub.com/ES/proteinas/proteinas-vegetales
