@@ -27,3 +27,13 @@ for (const [lang, msgs] of Object.entries(LANGS)) {
     }
   });
 }
+
+import { dataText } from "./datatext.ts";
+test("textes de la collecte : inchangés en France, traduits en Espagne", () => {
+  const note = "créatine monohydrate pure supposée (100 %), sans autre ingrédient déclaré dans le titre";
+  assert.equal(dataText("fr", note), note);
+  assert.match(dataText("es", note), /^creatina monohidrato pura supuesta/);
+  assert.equal(dataText("es", "calculé : 24 g pour 30 g"), "calculado: 24 g por cada 30 g");
+  assert.equal(dataText("es", "Caféine"), "Cafeína");
+  assert.equal(dataText("es", "Phrase inconnue"), "Phrase inconnue");
+});

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { dataText } from "@/lib/datatext";
 import { activeLabel, categoryById, modeDef, type Mode } from "@/lib/categories";
 import { href, type Country, type Lang } from "@/lib/country";
 import { ago, displayName, formatDate, formatMoney, formatNumber, snippet, stripBrand } from "@/lib/format";
@@ -108,9 +109,9 @@ export function OfferCard({ r, rank, mode, best, country }: { r: Ranked; rank: n
   ];
   const sources: string[] = [];
   if (r.evidence) sources.push(t(L, "offer.src.evidence", { text: snippet(r.evidence, 140) }));
-  if (r.note) sources.push(`${r.note[0].toUpperCase()}${r.note.slice(1)}.`);
+  if (r.note) { const n = dataText(L, r.note); sources.push(`${n[0].toUpperCase()}${n.slice(1)}.`); }
   if (a) sources.push(t(L, "offer.src.code", {
-    source: a.code.source ?? t(L, "offer.src.noSource"),
+    source: a.code.source ? dataText(L, a.code.source) : t(L, "offer.src.noSource"),
     checked: a.code.last_confirmed ? t(L, "offer.src.checked", { ago: ago(String(a.code.last_confirmed), country) }) : "",
   }));
   sources.push(t(L, "offer.src.collected", { ago: ago(r.collected_at, country) }));
@@ -131,7 +132,7 @@ export function OfferCard({ r, rank, mode, best, country }: { r: Ranked; rank: n
           <div className="pre" title={t(L, "offer.pre.title")}>
             {pre.map((a) => (
               <span key={a.label} className={a.ok ? "ok" : "low"}>
-                {a.ok ? "✓" : "↓"} {a.label} {num(a.dose, a.dose % 1 ? 1 : 0)} {a.unit}<small> / {num(a.ref, a.ref % 1 ? 1 : 0)} {a.unit}</small>
+                {a.ok ? "✓" : "↓"} {dataText(L, a.label)} {num(a.dose, a.dose % 1 ? 1 : 0)} {a.unit}<small> / {num(a.ref, a.ref % 1 ? 1 : 0)} {a.unit}</small>
               </span>
             ))}
           </div>

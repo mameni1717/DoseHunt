@@ -119,9 +119,22 @@ export function rerank(rows: IndexRow[], codes: PromoCode[], opts: RankOptions):
   return [...groups.values()].map((g) => ({ ...g.best, variants: g.tastes.size }));
 }
 
+// Mots d'unité de la collecte (français) traduits pour les autres langues ; le pluriel se forme avec « s ».
+const UNIT_WORD: Record<string, Record<string, string>> = {
+  es: { "gélule": "cápsula", capsule: "perla", "comprimé": "comprimido", gummy: "gominola", goutte: "gota", stick: "sobre",
+        ampoule: "ampolla", barre: "barrita", "unité": "unidad" },
+};
+
+export function unitWord(word: string, locale = "fr-FR"): string {
+  return UNIT_WORD[locale.slice(0, 2)]?.[word] ?? word;
+}
+
 /** Format affiché (« 2,5 kg », « 90 gélules ») ; locale du pays (défaut France). */
 export function formatLabel(r: Pick<IndexRow, "grams" | "units" | "unit_word" | "variant_title">, locale = "fr-FR"): string {
-  if (r.units && r.unit_word && r.unit_word !== "dose") return `${r.units} ${r.unit_word}${r.units > 1 ? "s" : ""}`;
+  if (r.units && r.unit_word && r.unit_word !== "dose") {
+    const w = unitWord(r.unit_word, locale);
+    return `${r.units} ${w}${r.units > 1 ? (w === "unidad" ? "es" : "s") : ""}`;
+  }
   if (r.grams) return r.grams >= 1000 ? `${(r.grams / 1000).toLocaleString(locale, { maximumFractionDigits: 2 })} kg` : `${r.grams} g`;
   return r.variant_title ?? "";
 }

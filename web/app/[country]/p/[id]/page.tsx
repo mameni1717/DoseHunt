@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { dataText } from "@/lib/datatext";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CodeVote, CopyCode, GoButton } from "@/components/client";
@@ -169,7 +170,7 @@ export default async function ProductPage({ params }: { params: Params }) {
                     {a.form ? ` · ${t(L, "product.contents.form", { form: a.form })}` : ""}
                   </td>
                   <td className="note-small">
-                    {a.evidence ? t(L, "product.contents.evidence", { source: src, text: snippet(a.evidence, 140) }) : src}{a.note ? `. ${a.note}` : ""}
+                    {a.evidence ? t(L, "product.contents.evidence", { source: src, text: snippet(a.evidence, 140) }) : src}{a.note ? `. ${dataText(L, a.note)}` : ""}
                   </td>
                 </tr>
               );
@@ -187,7 +188,7 @@ export default async function ProductPage({ params }: { params: Params }) {
               const pct = judged ? Math.round((s.pos / judged) * 100) : null;
               return (
                 <div key={topic} className="topic">
-                  <b>{topic}</b>
+                  <b>{dataText(L, topic)}</b>
                   <span className="bar" aria-hidden="true">
                     <i style={{ width: `${judged ? (s.pos / s.mentions) * 100 : 0}%` }} />
                     <b style={{ width: `${judged ? (s.neg / s.mentions) * 100 : 0}%` }} />
@@ -208,7 +209,7 @@ export default async function ProductPage({ params }: { params: Params }) {
             <thead><tr><th>{t(L, "product.pre.active")}</th><th className="r">{t(L, "product.pre.perServing")}</th><th className="r">{t(L, "product.pre.ref")}</th><th></th></tr></thead>
             <tbody>
               {Object.values(product.attributes.preworkout).map((a) => (
-                <tr key={a.label}><td>{a.label}</td><td className="r">{formatNumber(a.dose, country, a.dose % 1 ? 1 : 0)} {a.unit}</td>
+                <tr key={a.label}><td>{dataText(L, a.label)}</td><td className="r">{formatNumber(a.dose, country, a.dose % 1 ? 1 : 0)} {a.unit}</td>
                   <td className="r">{formatNumber(a.ref, country, a.ref % 1 ? 1 : 0)} {a.unit}</td><td>{a.ok ? t(L, "product.pre.ok") : t(L, "product.pre.low")}</td></tr>
               ))}
             </tbody>
@@ -279,7 +280,7 @@ export default async function ProductPage({ params }: { params: Params }) {
                     {c.ends_on && <span className="chip">{t(L, "product.code.until", { date: formatDate(String(c.ends_on), country) })}</span>}
                     {!c.stackable_with_sale && <span className="chip low">{t(L, "product.code.noStack")}</span>}
                   </span>
-                  <span className="note-small">{c.last_confirmed ? t(L, "product.code.verified", { source: c.source ?? "", ago: ago(String(c.last_confirmed), country) }) : c.source}
+                  <span className="note-small">{c.last_confirmed ? t(L, "product.code.verified", { source: dataText(L, c.source), ago: ago(String(c.last_confirmed), country) }) : dataText(L, c.source)}
                     {percentFor(c, 50) == null ? ` · ${t(L, "product.code.minOrder")}` : ""}</span>
                   <CodeVote codeId={c.id} m={voteM} />
                 </li>

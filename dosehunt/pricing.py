@@ -132,12 +132,18 @@ _CALC = {
     "fr": {"price": "Prix affiché : {p:.2f} €", "code": "Code {c} : -{d:.2f} € → {f:.2f} €", "nocode": "Code : aucun → {f:.2f} €",
            "c100": "Contenu : {g:g} g × {s} = {t:g} {u} d'actif", "per100": "{a:g} {u} pour 100 g",
            "cserv": "Contenu : {g:g} g ÷ portion de {a:g} g = {t:.0f} portions",
-           "cunit": "Contenu : {n} unités × {a:g} {u} = {t:g} {u} d'actif"},
+           "cunit": "Contenu : {n} unités × {a:g} {u} = {t:g} {u} d'actif",
+           "per_unit": "€/{w}", "unit": "unité", "per_serving": "€/portion de {s} g"},
     "es": {"price": "Precio mostrado: {p:.2f} €", "code": "Código {c}: -{d:.2f} € → {f:.2f} €", "nocode": "Código: ninguno → {f:.2f} €",
            "c100": "Contenido: {g:g} g × {s} = {t:g} {u} de activo", "per100": "{a:g} {u} por 100 g",
            "cserv": "Contenido: {g:g} g ÷ dosis de {a:g} g = {t:.0f} dosis",
-           "cunit": "Contenido: {n} unidades × {a:g} {u} = {t:g} {u} de activo"},
+           "cunit": "Contenido: {n} unidades × {a:g} {u} = {t:g} {u} de activo",
+           "per_unit": "€/{w}", "unit": "unidad", "per_serving": "€/dosis de {s} g"},
 }
+
+
+_UNIT_ES = {"gélule": "cápsula", "capsule": "perla", "comprimé": "comprimido", "gummy": "gominola", "goutte": "gota",
+            "stick": "sobre", "ampoule": "ampolla", "barre": "barrita"}
 
 
 def compute(category: str, price: float, fmt: Format, ac: ActiveContent, applied: Optional[AppliedCode],
@@ -178,12 +184,12 @@ def compute(category: str, price: float, fmt: Format, ac: ActiveContent, applied
 
     kg = final / (grams / 1000) if grams else None
     if ac.basis == "per_unit" and units:
-        unit_value, unit_label = final / units, f"€/{fmt.unit_word or 'unité'}"
+        unit_value, unit_label = final / units, T["per_unit"].format(w=_UNIT_ES.get(fmt.unit_word, fmt.unit_word) if lang == "es" and fmt.unit_word else (fmt.unit_word or T["unit"]))
     elif grams and ac.basis == "per_serving":
-        unit_value, unit_label = final / (grams / ac.amount), f"€/portion de {ac.amount:g} g"
+        unit_value, unit_label = final / (grams / ac.amount), T["per_serving"].format(s=f"{ac.amount:g}")
     elif grams:
         serving = c.get("serving_g") or DEFAULT_SERVING_G.get(category, 30)
-        unit_value, unit_label = final / (grams / serving), f"€/portion de {serving} g"
+        unit_value, unit_label = final / (grams / serving), T["per_serving"].format(s=serving)
     else:
         unit_value, unit_label = None, ""
     r = lambda x: round(x, 4) if x is not None else None
