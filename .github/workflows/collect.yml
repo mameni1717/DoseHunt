@@ -58,7 +58,7 @@ jobs:
   collect:
     needs: plan
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 300            # Naturitas et Nutritienda (ES) : plusieurs milliers de fiches à 2 s d'intervalle
     continue-on-error: true          # un site qui refuse le robot (Nutripure) ne fait pas échouer toute la mise à jour
     strategy:
       fail-fast: false

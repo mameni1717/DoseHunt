@@ -469,7 +469,8 @@ sites:
     filters:
       sitemap_child_filter: 'sitemap'      # sous-sitemaps sans « product » dans le nom
       sitemaps: [/sitemap.xml]
-      product_pattern: '^https://www\.naturitas\.es/p/(?:suplementos|alimentacion/alimentacion-deportiva)/'
+      # rubriques utiles seulement (sonde du 14/11 : 5 849 fiches sinon, collecte coupée à 2 h)
+      product_pattern: '^https://www\.naturitas\.es/p/(?:suplementos/(?:minerales-y-oligoelementos/(?:magnesio|zinc)|colagenos-y-cartilagos/colageno|vitaminas/vitamina-[cd]|acidos-grasos-y-omegas/aceite-de-(?:pescado|krill)|deporte/|aminoacidos-y-proteinas/glutamina)|alimentacion/alimentacion-deportiva/(?:barritas-proteicas|proteina))'
       prefilter_url: true
       free_shipping_from: 49
     notes: >-
