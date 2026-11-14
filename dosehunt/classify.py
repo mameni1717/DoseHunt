@@ -47,6 +47,8 @@ def _compiled(lang: str = "fr"):
             "require_any": [re.compile(p, re.I) for p in c.get("require_any", [])],
             "type_exclude": [t.lower() for t in c.get("product_type_exclude", [])],
             "subs": {k: [re.compile(p, re.I) for p in v] for k, v in (c.get("subcategories") or {}).items()},
+            # bloc de langue `booster_needs_active` : « booster » seul ne classe pas en pré-workout sans actif typique
+            "booster_only": bool(lang != "fr" and (c0.get(lang) or {}).get("booster_needs_active")),
         }
     return out
 
@@ -128,6 +130,9 @@ def classify(p: RawProduct, site: Optional[Site] = None, lang: Optional[str] = N
             continue
         if rx["require_any"] and not any(r.search(haystack) for r in rx["require_any"]):
             continue
+        if rx["booster_only"] and all(r.pattern == "booster" for r in rx["include"] if r.search(haystack)) \
+                and not looks_preworkout(p, lang):
+            continue                                        # « TestoXT Booster », « Thyro Booster » : pas des pré-workouts
         sub = None
         if rx["subs"]:
             title_type = p.title + " " + (p.product_type or "")

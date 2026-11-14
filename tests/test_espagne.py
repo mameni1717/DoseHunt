@@ -295,3 +295,169 @@ def test_top_product_urls_is_per_country(tmp_path):
     # le produit espagnol est 1er en Espagne même si l'offre française est moins chère
     assert top_product_urls(e, "myprotein-es", 1) == ["https://ES/p/2"]
     assert top_product_urls(e, "myprotein", 1) == ["https://FR/p/1"]
+
+
+# --------------------------------------------------------------------------- 14/11 : première collecte espagnole
+# Extraits RÉELS relevés le 14/11/2026 avec le robot DoseHunt (robots.txt respecté, une requête toutes les 2,5 s) :
+# masmusculo.com (products.json, pages 1 à 4), myprotein.es, bulk.com/es et sunday-natural.es (fiches citées).
+
+def test_intruders_es_masmusculo_titles():
+    # « booster » seul ne fait pas un pré-workout ; testostérone, thyroïde, thermogénique : exclus (titres et types réels)
+    for title, ptype in [("TestoXT Booster", "Complejos Testosterona"), ("Testosterone Booster", "Complejos Testosterona"),
+                         ("Thyro Booster", "Otros Quemadores"), ("ThermoLean Booster", "Termogénicos"), ("Tribooster", "Tribulus")]:
+        assert _cats(_p(title, ptype)) == [], title
+    # mélanges testostérone / sommeil : ni zinc, ni magnésium
+    assert _cats(_p("Tribulus + Zinc", "Tribulus")) == []
+    assert _cats(_p("Tribulus y ZMA", "Tribulus")) == []
+    assert _cats(_p("Triptófano con Melatonina + Magnesio y Vit B6", "Mejora del sueño")) == []
+    assert _cats(_p("Triptófano con Magnesio y Vitamina B6", "Mejora del sueño", "", {"magnesium"})) == []   # via rayon aussi
+    # gummies, petit-déjeuner, EAA
+    assert _cats(_p("Vegan Gummy Bar BCAAs", "Barritas de Carbohidratos")) == []
+    assert _cats(_p("Protein Breakfast", "Proteina de Suero Whey")) == []
+    assert _cats(_p("Premium EAA + Glutamina", "Esenciales e Hidrolizados")) == []
+    # une protéine « con creatina » reste une protéine (Myprotein « Origin Protein (con Creatina) »)
+    assert _cats(_p("Origin Protein (con Creatina)", "", "", {"whey"})) == [("whey", "classique")]
+    # ZMA reste zinc + magnésium, comme en France ; « Sweet Dream » (BIG) est une caséine micellaire : gardée
+    assert _cats(_p("ZMA", "ZMA")) == [("zinc", None), ("magnesium", None)] == _cats(_p("ZMA", "ZMA"), FR)
+    assert _cats(_p("Sweet Dream", "Caseina")) == [("whey", "caseine")]
+    # un « booster » dont la description cite un actif typique reste un pré-workout (construit)
+    assert _cats(_p("Nitro Booster", "", "<p>Con 200 mg de cafeína y 6 g de citrulina.</p>")) == [("preworkout", None)]
+    # règles françaises inchangées
+    assert _cats(_p("TestoXT Booster", "Complejos Testosterona"), FR) == [("preworkout", None)]
+    assert _cats(_p("Tribulus + Zinc", "Tribulus"), FR) == [("zinc", None)]
+
+
+ON_CREATINA_POLVO = ("<p>La Creatina en Polvo de Optimum viene en un bote de 317 g.</p>"
+                     "<p>Cada dosis recomendada de 3,6 g de creatina provee 3,6 g de creatina monohidrato .</p>"
+                     "<p>Dosis diaria recomendada de la Creatina en Polvo</p><p>Diluir 3,6 g (1 medidor al ras) en un vaso con agua.</p>")
+ON_MICRONIZADA = ("<p>La toma diaria indicada aporta 3 g de creatina .</p><p>Aporta 3 g de creatina por toma diaria .</p>"
+                  "<p>Cada toma diaria indicada proporciona 3,4 g de monohidrato de creatina, equivalentes a 3 g de creatina .</p>"
+                  "<p>Mezclar 3,4 g con 240 ml de agua fría y remover hasta que se haya disuelto completamente. Tomar 3,4 g al día.</p>")
+VITOBEST_PREMIUM = ("<p>3 g de creatina por dosis recomendada.</p><p>Una ingesta diaria de 3 g de creatina mejora el rendimiento "
+                    "físico en series sucesivas de ejercicios breves de alta intensidad. (*)</p>")
+
+
+def test_creatine_es_serving_claims_and_tablets():
+    ac = extract("creatine", ON_CREATINA_POLVO, "Creatina en Polvo", Format(grams=317), "es")
+    assert ac.amount == 100 and "3,6 g de creatina" in ac.evidence
+    assert extract("creatine", ON_CREATINA_POLVO, "Creatina en Polvo", Format(grams=317)) is None     # français : inchangé
+    # créatine comptée en monohydrate (3,4 g pour une dose de 3,4 g), jamais « 3 g de creatina » (base) ni l'allégation
+    assert extract("creatine", ON_MICRONIZADA, "Creatina Micronizada", Format(grams=300), "es").amount == 100
+    assert serving_size("Una ingesta diaria de 3 g de creatina", "es") is None
+    # « 3 g de creatina por dosis recomendada » sans poids de dose : rien (l'allégation « ingesta diaria de 3 g » ne compte pas)
+    assert extract("creatine", VITOBEST_PREMIUM, "Creatina Premium (Cr-Ystalpure®)", Format(grams=500), "es") is None
+    # comprimés : grammes de monohydrate par dose (Optimum Nutrition, masmusculo)
+    on_tabs = ("<p>3,0 g de monohidrato de creatina por cada 3 comprimidos.</p><p>De esa cantidad, 2,6 g corresponden a creatina .</p>"
+               "<p>Tomar 3 comprimidos al día.</p>")
+    ac = extract("creatine", on_tabs, "Creatina Monohidrato en tabletas", Format(units=180), "es")
+    assert ac.amount == 1000 and ac.units_per_dose == 3
+    on_2500 = ("<p>Especificaciones por dosis (2 cápsulas):</p><p>Tiene 2,5 gr de monohidrato de creatina, de los cuales 2,2 gr "
+               "son de creatina</p><p>Se recomienda consumir 2 cápsulas al día</p>")
+    assert extract("creatine", on_2500, "Creatina 2500", Format(units=200), "es").amount == 1250
+    # Myprotein, tableau : « Tamaño de la Ración - 3 Pastillas » + « Monohidrato de Creatina | | | 3 g »
+    mp_tabs = ("<p>1. La creatina mejora el rendimiento físico en ejercicios de ráfagas cortas y alta intensidad. Los efectos "
+               "beneficiosos se obtienen con una ingesta diaria de 3 g de creatina.</p><p>Tamaño de la Ración - 3 Pastillas</p>"
+               "<p>Raciones Por Envase - 83 (250 Pastillas)</p><table><tr><td>Valores nutricionales típicos</td><td>Por Porción</td></tr>"
+               "<tr><td>Monohidrato de Creatina</td><td></td><td></td><td>3 g</td></tr></table>")
+    ac = extract("creatine", mp_tabs, "Creatina Monohidrato en Tabletas", Format(units=250), "es")
+    assert ac.amount == 1000 and "| 3 g" in ac.evidence
+    # Myprotein, sachets « 20 x 6.8g » : de la poudre, pas 20 gélules de 3 000 mg
+    sobres = ("<p>Tamaño de la ración: 3,4g</p><p>Raciones por envase: 2</p><table><tr><td>Principios activos</td></tr>"
+              "<tr><td>Por ración diaria</td><td>3,4g</td></tr><tr><td>Monohidrato de creatina (Creapure®)</td><td>3,4g</td></tr>"
+              "<tr><td>del cual creatina</td><td>3g</td></tr></table>")
+    fmt = parse_format("THE Creatine (Creapure) |Sobres monodosis 20 x 6.8g Sin Sabor")
+    assert fmt.units == 20 and fmt.unit_grams == 6.8
+    assert extract("creatine", sobres, "THE Creatine (Creapure) |Sobres monodosis", fmt, "es").amount == 100
+    # Bulk « Creatina Monohidratada » (tailles « 100 / 250 / 500 / 1000 ») : monohydrate pur supposé, comme en France
+    ac = extract("creatine", "<p>Compra Creatina Monohidratada 99,99 % pura en polvo al precio más bajo en España.</p>",
+                 "Creatina Monohidratada", Format(grams=500), "es")
+    assert ac.amount == 100 and ac.source == "assumed"
+    assert serving_size("Mezclar 1 medidas (aproximadamente 3,4 g) con 200 ml de agua", "es") == 3.4     # Bulk Creapure
+
+
+def test_protein_per_serving_es_masmusculo():
+    stacker = ("<p>Whey Isolate de Stacker2 viene en un envase con 750 gr de preparado alimenticio en polvo.</p>"
+               "<p>Especificaciones por dosis (30 gr, sabor chocolate), los valores varían según el sabor:</p>"
+               "<p>Tiene un valor energético de 119 Kcal</p><p>Posee 27 gr de proteínas</p><p>Tiene 0,06 gr de sal</p>"
+               "<p>Mezclar 1 cucharada (30 gr) con 200 ml de agua fría y tomar de 2 a 3 veces al día</p>")
+    assert extract("whey", stacker, "Whey Isolate", Format(grams=750), "es").amount == 90
+    beverly = ("<p>Caseína micelar aislada: aporta 27,3 g de proteínas por servicio.</p>"
+               "<p>Mezclar 1 scoop de proteína (35 g) en agua, leche o bebida vegetal y tomar después del entrenamiento.</p>")
+    assert extract("whey", beverly, "Caseína Micellar", Format(grams=1000), "es").amount == 78
+    biotech = ("<p>Aporta 23 gramos de proteína por cada porción.</p><p>Uso recomendado : Como complemento alimenticio se debe "
+               "mezclar 30 gramos del producto o 1 porción en 300 mililitros de agua o leche descremada.</p>")
+    assert extract("whey", biotech, "Protein Power", Format(grams=1000), "es").amount == 76.7
+    assert extract("whey", biotech, "Protein Power", Format(grams=1000)) is None                       # français : inchangé
+
+
+def test_zinc_omega_vitd_es_masmusculo():
+    zmag = ("<p>Aspectos esenciales del ZMAG de Vitobest por 2 cápsulas</p><p>Aporta 30 mg de zinc monometionina</p>"
+            "<p>Con 5.98 mg de zinc elemental</p><p>Tiene 450 mg de magnesio aspartato</p><p>Contiene 66.98 mg de magnesio elemental</p>"
+            "<p>Se recomienda tomar 2 cápsulas al día de este producto, entre unos 30 a 60 minutos antes de ir a dormir</p>")
+    assert extract("zinc", zmag, "ZMA", Format(units=100), "es").amount == 2.99          # 30 mg = poids du sel (monométhionine)
+    assert extract("magnesium", zmag, "ZMA", Format(units=100), "es").amount == 33.49
+    amix = "<p>Presenta 15 mg de zinc elemental por cápsula</p><p>La dosis diaria recomendada es de 1 cápsula al día</p>"
+    assert extract("zinc", amix, "Zinc Bisglicinato", Format(units=90), "es").amount == 15
+    # l'allégation « ingesta de 250mg de EPA y DHA » n'est pas une teneur
+    mm_omega = ("<p>* (El efecto beneficioso se obtiene con una ingesta de 250mg de EPA y DHA)</p><p>Posee una composición a base "
+                "de ingredientes naturales y que proporciona 12% de DHA (ácido docosahexaenoico) y 18% de EPA</p><p>Tomar 3 softgel al día.</p>")
+    assert extract("omega3", mm_omega, "Omega 3", Format(units=120), "es") is None
+    d3 = "<p>Vitamina D3: 50µg por cápsula (1000% VRN).</p><p>Vitamina K2: 75µg por cápsula (100% VRN).</p>"
+    assert extract("vitamine_d", d3, "Vitamina D3 + K2 (50μg/75μg)", Format(units=60), "es").amount == 2000
+    ultra = "<p>Vitamina D (colecalciferol)</p><p>Tomar 1 cápsula al día acompañada de agua preferiblemente antes de comer.</p>"
+    assert extract("vitamine_d", ultra, "Vitamina D3 + K2 (100Μg/150Μg)", Format(units=240), "es").amount == 4000
+    assert extract("vitamine_d", ultra, "Vitamina D3 + K2 (100Μg/150Μg)", Format(units=240)) is None   # français : inchangé
+
+
+def test_servings_es_myprotein_masmusculo():
+    mezcla = ("<p>150 mg de cafeína por ración</p><p>Tamaño por ración - 1 cucharada (11.5 g)</p>"
+              "<p>Raciones por envase - 22 (250 g), 43 (500 g)</p>")
+    assert extract("preworkout", mezcla, "Mezcla Pre-Entreno", Format(grams=250), "es").amount == 11.5
+    assert extract("preworkout", mezcla, "Mezcla Pre-Entreno", Format(grams=250)) is None
+    vitobest = "<p>Cantidad recomendada: 25 g mezclados en 250 ml de agua</p><p>Momento de consumo: Antes del ejercicio</p>"
+    assert extract("preworkout", vitobest, "Pre Training", Format(grams=500), "es").amount == 25
+    glut = ("<p>SIN SABOR</p><p>Tamaño de la ración - 5g</p><p>Raciones por envase - 200 raciones (1kg)</p>"
+            "<table><tr><td>Principios activos</td><td>Por ración diaria</td></tr><tr><td>L-glutamina</td><td></td><td>5,0g</td></tr></table>")
+    assert extract("glutamine", glut, "L-Glutamina en polvo", Format(grams=1000), "es").amount == 100
+    glut_tabs = ("<p>Tamaño de la Ración - 3 Pastillas</p><p>Raciones Por Envase - 83 (250 Pastillas)</p>"
+                 "<table><tr><td>Valores nutricionales típicos</td><td>Por Porción</td></tr>"
+                 "<tr><td>L Glutamina</td><td></td><td></td><td>3 g</td></tr></table>")
+    assert extract("glutamine", glut_tabs, "L-glutamina Comprimidos", Format(units=250), "es").amount == 1000
+    # « Consumir 3 pastillas al día » ne divise pas la teneur du titre (Lamberts « Vitamina C 1500mg ») : seulement « Tamaño de la ración »
+    lamberts = ("<p>Vitamina C 1500 mg con bioflavonoides</p><p>Uso recomendado : Consumir 3 pastillas al día. La primera en la "
+                "mañana, otra en la tarde y la última antes de dormir.</p>")
+    assert extract("vitamine_c", lamberts, "Vitamina C 1500mg con Bioflavonoides", Format(units=100), "es").amount == 1500
+
+
+def test_sunday_natural_es_tables_and_contents():
+    from dosehunt.extract import content_from_text
+    luxe = ("<p>Modo de empleo: tomar 4 cápsulas al día con 200 ml de agua</p><table><tr><td>4 cápsulas</td><td>%N% VRN*</td></tr>"
+            "<tr><td>Hidrolizado de colágeno (de vacuno)</td><td>2000 mg</td><td>**</td></tr></table>")
+    ac = extract("collagene", luxe, "Colágeno SunGlow® Luxe", Format(units=120), "es")
+    assert ac.amount == 500 and ac.source == "regex_table"
+    assert extract("collagene", luxe, "Colágeno SunGlow® Luxe", Format(units=120)) is None              # français : inchangé
+    pure = ("<p>Térmicamente estable: ideal para mezclar con café caliente, sin desnaturalización, sin pérdida de ingredientes, pleno "
+            "disfrute</p><p>Ingredientes</p><p>Hidrolizado de colágeno¹ (de vacuno).</p>"
+            "<table><tr><td>Valores nutricionales</td><td>por cada 100 g de polvo</td><td>por ración (10 g)</td></tr>"
+            "<tr><td>Proteínas</td><td>92 g</td><td>9,2 g</td></tr></table>")
+    assert extract("collagene", pure, "Colágeno en polvo SunGlow® Pure", Format(grams=450), "es").amount == 92
+    glut = ("<p>3000 mg de L-glutamina por 4 cucharas de medición</p><p>Tomar 4 cucharas de medición al día (aprox. 3 g de "
+            "L-glutamina) con 200 ml de agua antes de las comidas.</p><table><tr><td>4 cucharas de medición (3 g)</td><td>% VRN*</td></tr>"
+            "<tr><td>L-glutamina</td><td>3000 mg</td><td>-**</td></tr></table>")
+    assert extract("glutamine", glut, "L-glutamina de fermentación en polvo, vegana", Format(grams=300), "es").amount == 100
+    assert content_from_text("<p>Hidrolizado de colágeno 100 % puro ✓ 450 g de polvo ✓ Sin aditivos</p>", "es") == (450, None)
+    assert content_from_text("<p>VITAMINA D3 + K2 MK7 TODO-TRANS 2500 UI + 100 µg x 300 gotas. Alta dosis</p>", "es") == (None, 300)
+    assert content_from_text("<p>450 g de polvo</p>") == (None, None)                                 # français : inchangé
+
+
+def test_bulk_es_sku_formats():
+    from dosehunt.collectors.page import variants_from_jsonld
+    rx = get_site("bulk-es").filters["sku_format"]
+    node = {"@type": "Product", "name": "Caseína Micelar", "offers": [
+        {"@type": "Offer", "sku": "BPB-MCAS-CHOC-0500-V2", "price": 21.99, "availability": "InStock"},
+        {"@type": "Offer", "sku": "HERO-PBAR-CCAR-BX12", "price": 29.99, "availability": "InStock"},
+        {"@type": "Offer", "sku": "HERO-PBAR-CCAR-0050", "price": 2.79, "availability": "InStock"}]}
+    titles = [v.title for v in variants_from_jsonld(node, [node], "https://www.bulk.com/es/products/x", rx)]
+    assert titles == ["500", "Pack de 12", "50"]
+    # l'entrée française garde sa règle
+    assert [v.title for v in variants_from_jsonld(node, [node], "u", get_site("bulk").filters["sku_format"])][2] == "50"
